@@ -3,7 +3,7 @@
 #include <cstdint>
 
 
-uint8_t dlcToLen(uint8_t dlcIn);
+uint8_t DlcToLen(uint8_t dlcIn);
 
 struct FDCAN_ScalerStruct {
   uint16_t Prescaler;

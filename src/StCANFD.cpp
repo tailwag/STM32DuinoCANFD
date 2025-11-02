@@ -3,7 +3,7 @@
 #include "stm32g4xx_hal_fdcan.h"
 #include <cstdint>
 
-uint8_t dlcToLen(uint8_t dlcIn) {
+uint8_t DlcToLen(uint8_t dlcIn) {
   if (dlcIn < 0 || dlcIn > 15)
     return 0;
 
@@ -68,7 +68,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   FDCAN_TxHeaderTypeDef TxHeader;
 
   uint8_t sanitizedDlc;
-  uint8_t messageBytes = dlcToLen(sanitizedDlc);
+  uint8_t messageBytes = DlcToLen(sanitizedDlc);
   uint8_t trimmedDataArray[messageBytes];
 
   for (uint8_t i = 0; i < messageBytes; i++) {
