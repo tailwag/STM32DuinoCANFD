@@ -110,16 +110,12 @@ void FDCanChannel::start(void) {
 
 void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS) {
   FDCAN_TxHeaderTypeDef TxHeader;
-  uint8_t sanitizedDlc;
 
-  if (canDlc < 0 || canDlc > 15) 
-    sanitizedDlc = 0;
-  else 
-    sanitizedDlc = canDlc;
+  // if dlc < 0 or dlc > 15 then set it to 0
+  canDlc = (canDlc < 0 | canDlc > 15) ? 0 : canDlc;
 
   // input sanitization hadled by DlcToLen
-  uint8_t messageBytes = DlcToLen(sanitizedDlc);
-  messageBytes = (messageBytes > 64) ? 64 : messageBytes;
+  uint8_t messageBytes = DlcToLen(canDlc);
 
   // pass only the bytes we need
   uint8_t trimmedDataArray[messageBytes];
@@ -127,6 +123,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
     trimmedDataArray[i] = canData[i];
   }
 
+  // construct message header
   if (BRS)
     TxHeader.BitRateSwitch = FDCAN_BRS_ON;
   else
@@ -135,7 +132,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   TxHeader.Identifier          = canId;
   TxHeader.IdType              = FDCAN_STANDARD_ID;
   TxHeader.TxFrameType         = FDCAN_DATA_FRAME;
-  TxHeader.DataLength          = sanitizedDlc;
+  TxHeader.DataLength          = canDlc;
   TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE; 
   TxHeader.FDFormat            = FDCAN_FD_CAN;
   TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
