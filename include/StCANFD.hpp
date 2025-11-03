@@ -67,9 +67,11 @@ class FDCanChannel {
   public:
     uint32_t lastSend(void);
     uint32_t lastRecv(void);
+    void start(void);
     void sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS = true);
 
     FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate);
+
 };
 
 #endif

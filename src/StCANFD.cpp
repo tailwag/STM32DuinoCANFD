@@ -1,4 +1,6 @@
 #include "StCANFD.hpp"
+#include "stm32g4xx_hal_fdcan.h"
+#include "stm32g4xx_hal_rcc.h"
 
 uint8_t DlcToLen(uint8_t dlcIn) {
   if (dlcIn < 0 || dlcIn > 15)
@@ -89,21 +91,26 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
   }
 }
 
+void FDCanChannel::start(void) {
+  __HAL_RCC_FDCAN_CLK_ENABLE();
+  HAL_FDCAN_Start(&Interface);
+}
+
 void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS) {
   FDCAN_TxHeaderTypeDef TxHeader;
-
   uint8_t sanitizedDlc;
-  uint8_t messageBytes = DlcToLen(sanitizedDlc);
-  uint8_t trimmedDataArray[messageBytes];
-
-  for (uint8_t i = 0; i < messageBytes; i++) {
-    trimmedDataArray[i] = canData[i];
-  }
 
   if (canDlc < 0 || canDlc > 15) 
     sanitizedDlc = 0;
   else 
     sanitizedDlc = canDlc;
+
+  uint8_t messageBytes = DlcToLen(sanitizedDlc);
+  uint8_t trimmedDataArray[messageBytes];
+  
+  for (uint8_t i = 0; i < messageBytes; i++) {
+    trimmedDataArray[i] = canData[i];
+  }
 
   if (BRS)
     TxHeader.BitRateSwitch = FDCAN_BRS_ON;
@@ -122,4 +129,78 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
 }
 
+static uint32_t HAL_RCC_FDCAN_CLK_ENABLED = 0;
+void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef * fdcanHandle) {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  if (fdcanHandle->Instance == FDCAN1) {
+    // initialize peripheral clocks 
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
+    PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PCLK1;
+
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+      Error_Handler();
+    }
+
+    // fdcan1 clock enable 
+    HAL_RCC_FDCAN_CLK_ENABLED++;
+    if (HAL_RCC_FDCAN_CLK_ENABLED == 1)
+      __HAL_RCC_FDCAN_CLK_ENABLE();
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    // FDCAN1 GPIO Config
+    // PA11 --> FDCAN1 RX
+    // PA12 --> FDCAN1 TX 
+    GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  }
+  else if (fdcanHandle->Instance == FDCAN2) {
+    // initialize peripheral clocks 
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
+    PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PCLK1;
+
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+      Error_Handler();
+    }
+
+    // fdcan1 clock enable 
+    HAL_RCC_FDCAN_CLK_ENABLED++;
+    if (HAL_RCC_FDCAN_CLK_ENABLED == 1)
+      __HAL_RCC_FDCAN_CLK_ENABLE();
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    // FDCAN1 GPIO Config
+    // PA11 --> FDCAN1 RX
+    // PA12 --> FDCAN1 TX 
+    GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN2;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  }
+}
+void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
+  if (fdcanHandle->Instance == FDCAN1) {
+    HAL_RCC_FDCAN_CLK_ENABLED--;
+    if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
+      __HAL_RCC_FDCAN_CLK_DISABLE();
+
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
+  } 
+  else if (fdcanHandle->Instance == FDCAN2) {
+    HAL_RCC_FDCAN_CLK_ENABLED--;
+    if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
+      __HAL_RCC_FDCAN_CLK_DISABLE();
+
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
+  }
+}
 
