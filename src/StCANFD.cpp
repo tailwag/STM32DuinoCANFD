@@ -117,6 +117,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   else 
     sanitizedDlc = canDlc;
 
+  /*
   // input sanitization hadled by DlcToLen
   uint8_t messageBytes = DlcToLen(sanitizedDlc);
 
@@ -125,6 +126,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   for (uint8_t i = 0; i < messageBytes; i++) {
     trimmedDataArray[i] = canData[i];
   }
+  */
 
   if (BRS)
     TxHeader.BitRateSwitch = FDCAN_BRS_ON;
@@ -148,7 +150,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   Serial.println((unsigned long)((uint8_t*)&TxHeader.DataLength - (uint8_t*)&TxHeader));
   #endif
 
-  if (HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray) != HAL_OK) {
+  if (HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, canData) != HAL_OK) {
     Error_Handler();
   }
 }
