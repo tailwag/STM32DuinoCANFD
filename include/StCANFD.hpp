@@ -1,14 +1,10 @@
+#include "stm32g474xx.h"
 #ifndef _MAINH
 #include "main.hpp"
 #endif // !_MAINH
-       //
-#include "stm32g4xx_hal_fdcan.h"
-
 
 #ifndef _STCANFDHPP
 #define _STCANFDHPP
-
-uint8_t DlcToLen(uint8_t dlcIn);
 
 struct FDCAN_ScalerStruct {
   uint16_t Prescaler;
@@ -49,6 +45,8 @@ enum Bitrate {
   b6000000,
   b8000000,
 };
+
+uint8_t DlcToLen(uint8_t dlcIn);
 
 class FDCanChannel {
   private:

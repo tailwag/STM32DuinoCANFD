@@ -1,7 +1,14 @@
 #include "StCANFD.hpp"
 #include "stm32_def.h"
+#include "stm32g474xx.h"
 #include "stm32g4xx_hal_fdcan.h"
 #include "stm32g4xx_hal_rcc.h"
+
+FDCAN_GlobalTypeDef * AvailableChannels[3] = {
+  FDCAN1,
+  FDCAN2,
+  FDCAN3,
+};
 
 // look up table for canfd dlc
 uint8_t DlcToLen(uint8_t dlcIn) {
@@ -54,16 +61,8 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
 
 // constructor for FDCanChannel class
 FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate) {
-  // determine hardware channel
-  if (chan == HwCanChannel::CH1) {
-    Interface.Instance = FDCAN1;
-  }
-  else if (chan == HwCanChannel::CH2) {
-    Interface.Instance = FDCAN2;
-  }
-  else {
-    Error_Handler();
-  }
+  // get can interface handle 
+  Interface.Instance = AvailableChannels[chan];
 
   // setup static values
   Interface.Init.ClockDivider       = FDCAN_CLOCK_DIV1;   // CPU_Clock / Divider 
@@ -93,9 +92,9 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
   Interface.Init.DataTimeSeg2         = DataScalers.Segment2;
 
   // filter setup
-  Interface.Init.StdFiltersNbr = 0;
-  Interface.Init.ExtFiltersNbr = 0;
-  Interface.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
+  Interface.Init.StdFiltersNbr    = 0;
+  Interface.Init.ExtFiltersNbr    = 0;
+  Interface.Init.TxFifoQueueMode  = FDCAN_TX_FIFO_OPERATION;
 
   // initialize interface
   if (HAL_FDCAN_Init(&Interface) != HAL_OK) {
