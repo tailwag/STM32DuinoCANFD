@@ -35,7 +35,7 @@ void setup() {
 }
 
 void loop() {
-  if (millis() - loopTime >= 1000) {
+  if (millis() - loopTime >= 500) {
 
     if (sendData[0] == 255)
       sendData[0] = 0;

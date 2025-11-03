@@ -3,14 +3,6 @@
 #endif // !_MAINH
        //
 #include "stm32g4xx_hal_fdcan.h"
-#include "stm32_def.h"
-#include "stm32g474xx.h"
-#include "stm32g4xx.h"
-#include "stm32g4xx_hal_gpio.h"
-#include "stm32g4xx_hal_gpio_ex.h"
-#include "stm32g4xx_hal_rcc.h"
-#include "stm32g4xx_hal_rcc_ex.h"
-#include "stm32g4xx_hal_fdcan.h"
 
 
 #ifndef _STCANFDHPP

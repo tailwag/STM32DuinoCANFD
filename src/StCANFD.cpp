@@ -45,11 +45,11 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   {16,  1,  5, 2}, //1,250,000 bps - works
   {10,  1,  7, 2}, //1,600,000 bps - works
   { 8,  1,  7, 2}, //2,000,000 bps - works
-  { 8,  1,  5, 2}, //2,500,000 bps - doesn't appear to work
-  { 4,  1,  7, 2}, //4,000,000 bps - doesn't appear to work
-  { 4,  1,  5, 2}, //5,000,000 bps - deson't appear to work
+  { 8,  1,  5, 2}, //2,500,000 bps - vector: no, peak: yes
+  { 4,  1,  7, 2}, //4,000,000 bps - vector: no, peak: yes
+  { 4,  1,  5, 2}, //5,000,000 bps - vector: no, peak: no
   { 3,  1,  6, 2}, //6,000,000 bps - use with caution, actually 5,925,926
-  { 2,  1,  7, 2}, //8,000,000 bps - doesn't appear to work
+  { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
 // constructor for FDCanChannel class
