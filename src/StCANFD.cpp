@@ -111,7 +111,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   FDCAN_TxHeaderTypeDef TxHeader;
 
   // if dlc < 0 or dlc > 15 then set it to 0
-  canDlc = (canDlc < 0 | canDlc > 15) ? 0 : canDlc;
+  canDlc = (canDlc < 0 || canDlc > 15) ? 0 : canDlc;
 
   // input sanitization hadled by DlcToLen
   uint8_t messageBytes = DlcToLen(canDlc);
