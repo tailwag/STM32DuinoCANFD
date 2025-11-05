@@ -3,6 +3,7 @@
 #include "stm32g474xx.h"
 #include "stm32g4xx_hal_fdcan.h"
 #include "stm32g4xx_hal_rcc.h"
+#include <cstdint>
 
 FDCAN_GlobalTypeDef * AvailableChannels[3] = {
   FDCAN1,
@@ -59,6 +60,64 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
+CanFrame::CanFrame() {
+  canId = 0;
+  canDlc = 0;
+  
+  for (uint8_t i = 0; i < 64; i++) {
+    data[i] = 0;
+  }
+
+  brs = true;
+}
+
+uint32_t CanFrame::GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+
+}
+
+int32_t CanFrame::GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+
+}
+
+float CanFrame::GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+
+}
+
+void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+  if (length < 32)
+    value &= (1u << length); // bitmasking out the value we need 
+
+  // calculate the absolute bit start position
+  uint16_t absStart = startByte * 8 + startBit;
+
+  for (uint8_t i = 0; i < length; i++) {
+    // calculate target bit index
+    uint16_t bitPos = absStart + i;
+
+    uint8_t byteIndex = bitPos / 8; // integer division, no remainder
+    uint8_t bitIndex  = bitPos % 8; // get remainder
+
+    // bring target bit down into position 0, then mask it out
+    uint8_t bit = (value >> i) & 1u;
+
+    // set or clear bit 
+    if (bit)
+      data[byteIndex] |=  (1u << bitIndex);
+    else 
+      data[byteIndex] &= ~(1u << bitIndex);
+  }
+}
+
+void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+
+}
+
+void CanFrame::SetFloat(float value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+  uint32_t longVal = * ( uint32_t * ) &value;
+  SetUnsigned(longVal, startByte, startBit, length, order);
+}
+
+
 // constructor for FDCanChannel class
 FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate) {
   // get can interface handle 
@@ -107,6 +166,7 @@ void FDCanChannel::start(void) {
   HAL_FDCAN_Start(&Interface);
 }
 
+// send frame function
 void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS) {
   FDCAN_TxHeaderTypeDef TxHeader;
 
@@ -137,9 +197,10 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
   TxHeader.MessageMarker       = 0;
 
-  if (HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray) != HAL_OK) {
+  byte halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
+
+  if (halOpStatus != HAL_OK) 
     Error_Handler();
-  }
 }
 
 // function to initialize the physical interface in the HAL 
@@ -219,5 +280,29 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
 
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
   }
+}
+
+// receive callback function
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+  Serial.println("Message received");
+
+  if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
+    FDCAN_RxHeaderTypeDef rxHeader;
+    uint8_t rxData[64];
+
+    byte halOpStatus = HAL_FDCAN_GetRxMessage(FDCAN_HandleTypeDef *hfdcan, uint32_t RxLocation, FDCAN_RxHeaderTypeDef *pRxHeader, uint8_t *pRxData)
+  }
+
+    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
+    {
+        FDCAN_RxHeaderTypeDef rxHeader;
+        uint8_t rxData[64];
+
+        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
+          Error_Handler();
+        }
+
+        HAL_UART_Transmit(&hcom_uart[COM1], (uint8_t*)"recvd\r\n", 7, HAL_MAX_DELAY);     
+    }
 }
 

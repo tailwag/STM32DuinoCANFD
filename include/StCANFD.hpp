@@ -1,4 +1,5 @@
 #include "stm32g474xx.h"
+#include <cstdint>
 #ifndef _MAINH
 #include "main.hpp"
 #endif // !_MAINH
@@ -46,7 +47,31 @@ enum Bitrate {
   b8000000,
 };
 
+enum Endian {
+  Little, 
+  Big,
+};
+
 uint8_t DlcToLen(uint8_t dlcIn);
+
+class CanFrame {
+  public:
+    uint16_t canId;
+    uint8_t canDlc;
+    uint8_t data[64];
+    bool brs;
+
+    uint32_t GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    int32_t    GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    float       GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+
+    void     SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    void       SetSigned(int32_t value,  uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    void        SetFloat(float value,    uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+
+    CanFrame();
+};
+
 
 class FDCanChannel {
   private:
@@ -59,6 +84,7 @@ class FDCanChannel {
     uint32_t lastRecv(void);
     void start(void);
     void sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS = true);
+    
 
     FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate);
 
