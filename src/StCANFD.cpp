@@ -121,7 +121,7 @@ void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uin
     upper |= (1u << i);
   }
 
-  // invert mac value to get min (neg) value 
+  // invert max value to get min (neg) value 
   int32_t lower = ~upper;
 
   // if value falls outside of range, set to max or min 
