@@ -76,7 +76,27 @@ CanFrame::CanFrame() {
 }
 
 uint32_t CanFrame::GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+  // value that eventually gets returned
+  uint32_t retVal = 0;
 
+  // calculate absolute start bit position
+  uint16_t absStart = startByte * 8 + startBit; 
+
+  for (uint8_t i = 0; i < length; i++) {
+    // calculate target bit index
+    uint16_t bitPos = absStart + i; 
+
+    uint8_t byteIndex = bitPos / 8; // integer division, no remainder
+    uint8_t bitIndex  = bitPos % 8; // get remainder
+
+    // isolate individual bit
+    uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
+
+    // put isolated bit into return value
+    retVal |= ((uint32_t)bit << i);
+  }
+
+  return retVal;
 }
 
 int32_t CanFrame::GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
