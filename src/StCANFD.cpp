@@ -93,18 +93,33 @@ uint32_t CanFrame::GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t leng
     uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
 
     // put isolated bit into return value
-    retVal |= ((uint32_t)bit << i);
+    retVal |= (static_cast<uint32_t>(bit) << i);
   }
 
   return retVal;
 }
 
 int32_t CanFrame::GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+  // get raw bits in unsigned value
+  uint32_t rawValue = GetUnsigned(startByte, startBit, length, order);
 
+  // shift the sign bit down to determine if value is negative
+  bool isNeg = rawValue >> (length - 1) & 1u; 
+
+  if (isNeg) {
+    // generate bit mask for later or
+    // 00001010 | 11111000 = 11111010
+    int32_t bitMask = -1 << (length - 1);
+    return rawValue | bitMask; 
+  }
+
+  return static_cast<int32_t>(rawValue);
 }
 
 float CanFrame::GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
-
+  uint32_t rawValue = GetUnsigned(startByte, startBit, length);
+  float retVal = * ( float * ) &rawValue;
+  return retVal;
 }
 
 void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
@@ -219,8 +234,9 @@ void FDCanChannel::start(void) {
 void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS) {
   FDCAN_TxHeaderTypeDef TxHeader;
 
-  // if dlc < 0 or dlc > 15 then set it to 0
-  canDlc = (canDlc < 0 || canDlc > 15) ? 0 : canDlc;
+  // set min and max values
+  canDlc = (canDlc < 0) ?  0 : canDlc;
+  canDlc = (canDlc > 0) ? 15 : canDlc;
 
   // input sanitization hadled by DlcToLen
   uint8_t messageBytes = DlcToLen(canDlc);
