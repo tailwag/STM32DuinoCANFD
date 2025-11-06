@@ -60,6 +60,10 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
+uint32_t uIntPow(uint8_t base, uint8_t exp) {
+
+}
+
 CanFrame::CanFrame() {
   canId = 0;
   canDlc = 0;
@@ -108,10 +112,35 @@ void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, 
   }
 }
 
+// convert signed bits to unsigned int value and use SetUnsigned to set value
+// we have to manually mover the sign bit, because can signed ints are variable length
 void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+  // calculate max positive value 
+  int32_t upper = 0;
+  for (uint8_t i = 0; i < length - 1; i++) {
+    upper |= (1u << i);
+  }
 
+  // invert mac value to get min (neg) value 
+  int32_t lower = ~upper;
+
+  // if value falls outside of range, set to max or min 
+  value = (value > upper) ? upper : value;
+  value = (value < lower) ? lower : value;
+
+  // get & bitmask for final value 
+  // we can reuse upper here 
+  uint32_t bitmask = ((uint32_t)upper << 1) + 1u;
+
+  // apply the bitmask to the final value 
+  value &= bitmask; 
+
+  // set the value 
+  SetUnsigned(value, startByte, startBit, length, order);
 }
 
+// convert float value bits to unsigned int value and use SetUnsigned to set value
+// this is convenient, because can floats are always 32 bits
 void CanFrame::SetFloat(float value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
   uint32_t longVal = * ( uint32_t * ) &value;
   SetUnsigned(longVal, startByte, startBit, length, order);
