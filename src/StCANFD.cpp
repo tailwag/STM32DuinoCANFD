@@ -1,4 +1,5 @@
 #include "StCANFD.hpp"
+#include <cstring>
 
 // global channel definition
 FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };
@@ -83,6 +84,10 @@ CanFrame::CanFrame() {
   }
 
   brs = true;
+}
+
+void CanFrame::clear() {
+  memset(data, 0, sizeof(data));
 }
 
 uint32_t CanFrame::GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
@@ -428,14 +433,17 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
 
 // receive callback function
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-  Serial.println("Callback");
   if(!(RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE))
     return;
 
   for (int i = 0; i < 3; i++) {
+    // get hardware channel ID for iterator from enum 
     HwCanChannel c = static_cast<HwCanChannel>(i);
 
+    // FDCanChannel::getInstance(HwCanChannel) returns pointer to object
+    // if an instance hasn't been initialized yet, it returns a nullptr
     if (FDCanChannel::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
+      // use the interupt handler for the specific channel
       FDCanChannel::getInstance(c)->handleRxInterrupt();
       break;
     }

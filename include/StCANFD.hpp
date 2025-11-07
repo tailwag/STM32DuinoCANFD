@@ -68,6 +68,8 @@ class CanFrame {
     uint8_t data[64];
     bool brs;
 
+    void clear();
+    
     uint32_t GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
     int32_t    GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
     float       GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);

@@ -52,16 +52,18 @@ void loop() {
 
     CanFrame RecvFrame; 
     if (!can0.inbox.empty()) {
+      RecvFrame.clear();
       can0.inbox.pop(RecvFrame);
 
-      Serial.print("Last Received : ");
-      Serial.println(can0.lastRecv());
-      Serial.print("ID : 0x");
-      Serial.println(RecvFrame.canId, HEX);
-      Serial.print("DLC : ");
-      Serial.println(RecvFrame.canDlc);
-      Serial.print("Value Signal : ");
-      Serial.println(RecvFrame.GetUnsigned(1, 0, 8));
+      Serial.print("Auto Inc : ");
+      Serial.println(RecvFrame.GetUnsigned(0, 0, 8));
+      Serial.print("Signed   : ");
+      Serial.println(RecvFrame.GetSigned(1, 6, 4));
+      Serial.print("Unsigned : ");
+      Serial.println(RecvFrame.GetUnsigned(2, 6, 4));
+      Serial.print("Float    : ");
+      Serial.println(RecvFrame.GetFloat(4, 0, 32));
+      Serial.println();
     } 
 
 
