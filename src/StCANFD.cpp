@@ -60,10 +60,6 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
-uint32_t uIntPow(uint8_t base, uint8_t exp) {
-
-}
-
 CanFrame::CanFrame() {
   canId = 0;
   canDlc = 0;
@@ -231,12 +227,17 @@ void FDCanChannel::start(void) {
 }
 
 // send frame function
-void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, bool BRS) {
+void FDCanChannel::sendFrame(CanFrame * Frame) {
   FDCAN_TxHeaderTypeDef TxHeader;
+  
+  uint8_t canDlc = Frame->canDlc;
+  uint16_t canId = Frame->canId;
 
   // set min and max values
-  canDlc = (canDlc < 0) ?  0 : canDlc;
-  canDlc = (canDlc > 0) ? 15 : canDlc;
+  canId  = (canId  < 0)     ? 0     : canId;
+  canId  = (canId  > 0x7FF) ? 0x7FF : canId;
+  canDlc = (canDlc < 0)     ? 0     : canDlc;
+  canDlc = (canDlc > 15)    ? 15    : canDlc;
 
   // input sanitization hadled by DlcToLen
   uint8_t messageBytes = DlcToLen(canDlc);
@@ -244,11 +245,11 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
   // pass only the bytes we need
   uint8_t trimmedDataArray[messageBytes];
   for (uint8_t i = 0; i < messageBytes; i++) {
-    trimmedDataArray[i] = canData[i];
+    trimmedDataArray[i] = Frame->data[i];
   }
 
   // construct message header
-  if (BRS)
+  if (Frame->brs)
     TxHeader.BitRateSwitch = FDCAN_BRS_ON;
   else
     TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
@@ -264,6 +265,7 @@ void FDCanChannel::sendFrame(uint16_t canId, uint8_t canDlc, uint8_t * canData, 
 
   byte halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
 
+  Serial.println(halOpStatus);
   if (halOpStatus != HAL_OK) 
     Error_Handler();
 }
@@ -348,26 +350,26 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
 }
 
 // receive callback function
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-  Serial.println("Message received");
-
-  if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
-    FDCAN_RxHeaderTypeDef rxHeader;
-    uint8_t rxData[64];
-
-    byte halOpStatus = HAL_FDCAN_GetRxMessage(FDCAN_HandleTypeDef *hfdcan, uint32_t RxLocation, FDCAN_RxHeaderTypeDef *pRxHeader, uint8_t *pRxData)
-  }
-
-    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
-    {
-        FDCAN_RxHeaderTypeDef rxHeader;
-        uint8_t rxData[64];
-
-        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
-          Error_Handler();
-        }
-
-        HAL_UART_Transmit(&hcom_uart[COM1], (uint8_t*)"recvd\r\n", 7, HAL_MAX_DELAY);     
-    }
-}
+//void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+//  Serial.println("Message received");
+//
+//  if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
+//    FDCAN_RxHeaderTypeDef rxHeader;
+//    uint8_t rxData[64];
+//
+//    byte halOpStatus = HAL_FDCAN_GetRxMessage(FDCAN_HandleTypeDef *hfdcan, uint32_t RxLocation, FDCAN_RxHeaderTypeDef *pRxHeader, uint8_t *pRxData)
+//  }
+//
+//    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
+//    {
+//        FDCAN_RxHeaderTypeDef rxHeader;
+//        uint8_t rxData[64];
+//
+//        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
+//          Error_Handler();
+//        }
+//
+//        HAL_UART_Transmit(&hcom_uart[COM1], (uint8_t*)"recvd\r\n", 7, HAL_MAX_DELAY);     
+//    }
+//}
 

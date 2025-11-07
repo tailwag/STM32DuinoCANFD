@@ -6,8 +6,6 @@ uint32_t loopTime;
 
 FDCanChannel can0(HwCanChannel::CH1, Bitrate::b500000, Bitrate::b2000000); 
 
-uint8_t sendData[64];
-
 void setup() {
   HAL_Init();
   
@@ -26,10 +24,6 @@ void setup() {
   Serial.print("PCLK2Freq    : ");
   Serial.println(HAL_RCC_GetPCLK2Freq());
 
-  for (uint8_t i = 0; i < 64; i++) {
-    sendData[i] = 0;
-  }
-
   loopTime = millis();
   can0.start();
 }
@@ -37,13 +31,17 @@ void setup() {
 void loop() {
   if (millis() - loopTime >= 500) {
 
-    if (sendData[0] == 255)
-      sendData[0] = 0;
+    CanFrame SendFrame;
+    SendFrame.canId  = 0x700;
+    SendFrame.canDlc = 8;
+    if (SendFrame.data[0] == 255)
+      SendFrame.data[0] = 0;
     else 
-      ++sendData[0];
+      ++SendFrame.data[0];
 
     Serial.println(loopTime);
-    can0.sendFrame(0x701, 8, sendData);
+
+    can0.sendFrame(&SendFrame);
 
     loopTime = millis();
   }
