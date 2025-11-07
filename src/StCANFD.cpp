@@ -1,4 +1,5 @@
 #include "StCANFD.hpp"
+#include "Print.h"
 #include "stm32_def.h"
 #include "stm32g474xx.h"
 #include "stm32g4xx_hal_fdcan.h"
@@ -119,9 +120,14 @@ float CanFrame::GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, En
 }
 
 void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
-  if (length < 32)
-    value &= (1u << length); // bitmasking out the value we need 
+  // bit manipulation to get the max unsigned value 
+  // -1 of a signed value is all ones, shift left to introduce 0s 
+  // invert to change all 0s to 1s and vise versa
+  uint32_t upper = static_cast<uint32_t>(~(-1 << length));
 
+  value = (value > upper) ? upper : value; // make sure value doesn't exceed limit
+  value = (value < 0)     ? 0     : value; // if this evals true something has gone horribly wrong
+                                           
   // calculate the absolute bit start position
   uint16_t absStart = startByte * 8 + startBit;
 
@@ -146,14 +152,9 @@ void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, 
 // convert signed bits to unsigned int value and use SetUnsigned to set value
 // we have to manually mover the sign bit, because can signed ints are variable length
 void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
-  // calculate max positive value 
-  int32_t upper = 0;
-  for (uint8_t i = 0; i < length - 1; i++) {
-    upper |= (1u << i);
-  }
-
-  // invert max value to get min (neg) value 
-  int32_t lower = ~upper;
+  // bit manipulation to get upper and lower limits
+  int32_t lower = -1 << (length - 1);
+  int32_t upper = ~lower;
 
   // if value falls outside of range, set to max or min 
   value = (value > upper) ? upper : value;
@@ -265,7 +266,6 @@ void FDCanChannel::sendFrame(CanFrame * Frame) {
 
   byte halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
 
-  Serial.println(halOpStatus);
   if (halOpStatus != HAL_OK) 
     Error_Handler();
 }
