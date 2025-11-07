@@ -1,16 +1,25 @@
 #include "StCANFD.hpp"
-#include "Print.h"
-#include "stm32_def.h"
-#include "stm32g474xx.h"
-#include "stm32g4xx_hal_fdcan.h"
-#include "stm32g4xx_hal_rcc.h"
-#include <cstdint>
 
-FDCAN_GlobalTypeDef * AvailableChannels[3] = {
-  FDCAN1,
-  FDCAN2,
-  FDCAN3,
-};
+// global channel definition
+FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };
+
+extern "C" void FDCAN1_IT0_IRQHandler(void) {
+  auto inst = FDCanChannel::getInstance(CH1);
+  if (inst)
+    HAL_FDCAN_IRQHandler(inst->getHandle());
+}
+
+extern "C" void FDCAN2_IT0_IRQHandler(void) {
+  auto inst = FDCanChannel::getInstance(CH2);
+  if (inst)
+    HAL_FDCAN_IRQHandler(inst->getHandle());
+}
+
+extern "C" void FDCAN3_IT0_IRQHandler(void) {
+  auto inst = FDCanChannel::getInstance(CH3);
+  if (inst)
+    HAL_FDCAN_IRQHandler(inst->getHandle());
+}
 
 // look up table for canfd dlc
 uint8_t DlcToLen(uint8_t dlcIn) {
@@ -61,6 +70,10 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
+
+/* --------------------------------------------------------------- *
+ * -- METHOD DEFINITIONS: CanFrame class                        -- *
+ * --------------------------------------------------------------- */
 CanFrame::CanFrame() {
   canId = 0;
   canDlc = 0;
@@ -178,9 +191,49 @@ void CanFrame::SetFloat(float value, uint8_t startByte, uint8_t startBit, uint8_
   SetUnsigned(longVal, startByte, startBit, length, order);
 }
 
+/* --------------------------------------------------------------- *
+ * -- METHOD DEFINITIONS: CanInbox class                        -- *
+ * --------------------------------------------------------------- */
+bool CanInbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data) {
+  // if next message is out of bounds, loop back around to start
+  uint8_t next = (head + 1) % MAX_MESSAGES;
 
+  // overwrite oldest if full
+  if (next == tail)
+    tail = (tail + 1) % MAX_MESSAGES; 
+
+  // select oldest slot to write data into
+  CanFrame &msg = buffer[head];
+
+  msg.canId  = rxHeader.Identifier;
+  msg.canDlc = rxHeader.DataLength; // >> 16 // HAL encodes DLC in bits 19:16
+  msg.brs    = (rxHeader.BitRateSwitch == FDCAN_BRS_ON);
+
+  memcpy(msg.data, data, DlcToLen(msg.canDlc));
+
+  head = next; 
+  return true;
+}
+
+bool CanInbox::pop(CanFrame &out) {
+  if (head == tail)
+    return false;
+
+  out  = buffer[tail];
+  tail = (tail + 1) % MAX_MESSAGES;
+  return true;
+}
+
+/* --------------------------------------------------------------- *
+ * -- METHOD DEFINITIONS: FDCanChannel class                    -- *
+ * --------------------------------------------------------------- */
 // constructor for FDCanChannel class
 FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate) {
+  ChannelID = chan;
+
+  // store pointer to object in global array
+  Instances[chan] = this;
+
   // get can interface handle 
   Interface.Instance = AvailableChannels[chan];
 
@@ -222,9 +275,33 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
   }
 }
 
+FDCanChannel* FDCanChannel::Instances[3] = { nullptr, nullptr, nullptr };
+
+void FDCanChannel::handleRxInterrupt() {
+  FDCAN_RxHeaderTypeDef rxHeader; 
+  uint8_t rxData[64];
+
+  if (HAL_FDCAN_GetRxMessage(&Interface, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
+    Error_Handler();
+    return;
+  }
+
+  inbox.push(rxHeader, rxData);
+  timeLastRecv = HAL_GetTick();
+}
+
 void FDCanChannel::start(void) {
   __HAL_RCC_FDCAN_CLK_ENABLE();
   HAL_FDCAN_Start(&Interface);
+  HAL_FDCAN_ActivateNotification(&Interface, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+
+  // Enable IRQ in NVIC
+  if (Interface.Instance == FDCAN1)
+    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+  else if (Interface.Instance == FDCAN2)
+    HAL_NVIC_SetPriority(FDCAN2_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN2_IT0_IRQn);
+  else if (Interface.Instance == FDCAN3)
+    HAL_NVIC_SetPriority(FDCAN3_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN3_IT0_IRQn);
 }
 
 // send frame function
@@ -350,26 +427,17 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
 }
 
 // receive callback function
-//void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-//  Serial.println("Message received");
-//
-//  if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
-//    FDCAN_RxHeaderTypeDef rxHeader;
-//    uint8_t rxData[64];
-//
-//    byte halOpStatus = HAL_FDCAN_GetRxMessage(FDCAN_HandleTypeDef *hfdcan, uint32_t RxLocation, FDCAN_RxHeaderTypeDef *pRxHeader, uint8_t *pRxData)
-//  }
-//
-//    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
-//    {
-//        FDCAN_RxHeaderTypeDef rxHeader;
-//        uint8_t rxData[64];
-//
-//        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
-//          Error_Handler();
-//        }
-//
-//        HAL_UART_Transmit(&hcom_uart[COM1], (uint8_t*)"recvd\r\n", 7, HAL_MAX_DELAY);     
-//    }
-//}
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+  Serial.println("Callback");
+  if(!(RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE))
+    return;
 
+  for (int i = 0; i < 3; i++) {
+    HwCanChannel c = static_cast<HwCanChannel>(i);
+
+    if (FDCanChannel::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
+      FDCanChannel::getInstance(c)->handleRxInterrupt();
+      break;
+    }
+  }
+}

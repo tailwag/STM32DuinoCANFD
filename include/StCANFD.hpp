@@ -1,4 +1,11 @@
+#include "stm32_def.h"
 #include "stm32g474xx.h"
+#include "stm32g4xx_hal_fdcan.h"
+#include "stm32g4xx_hal_rcc.h"
+#include <cstdint>
+#include <cstring>
+#include "stm32g474xx.h"
+#include "stm32g4xx_hal_fdcan.h"
 #include <cstdint>
 #ifndef _MAINH
 #include "main.hpp"
@@ -72,18 +79,39 @@ class CanFrame {
     CanFrame();
 };
 
+class CanInbox {
+  private:
+    static constexpr size_t MAX_MESSAGES = 16;
+    CanFrame buffer [MAX_MESSAGES]; 
+    volatile uint8_t head = 0;
+    volatile uint8_t tail = 0;
+
+  public:
+    bool  push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data);
+    bool   pop(CanFrame &out);
+    bool empty() const { return head == tail; }
+    bool  full() const { return ((head + 1) % MAX_MESSAGES) == tail; }
+};
 
 class FDCanChannel {
   private:
     FDCAN_HandleTypeDef Interface;
+    HwCanChannel ChannelID;
     uint32_t timeLastSend;
     uint32_t timeLastRecv;
 
+    static FDCanChannel *Instances[3];
+
   public:
-    uint32_t lastSend(void);
-    uint32_t lastRecv(void);
+    CanInbox inbox;
+    uint32_t lastSend() const { return timeLastRecv; }
+    uint32_t lastRecv() const { return timeLastSend; }
     void start(void);
     void sendFrame(CanFrame * Frame);
+    void handleRxInterrupt();
+
+    static FDCanChannel *getInstance(HwCanChannel chan) { return Instances[chan]; }
+    FDCAN_HandleTypeDef *getHandle() { return &Interface; }
 
     FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate);
 };

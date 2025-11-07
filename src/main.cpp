@@ -28,6 +28,7 @@ void setup() {
   loopTime = millis();
 
   can0.start();
+
 }
 
 void loop() {
@@ -45,9 +46,24 @@ void loop() {
     else 
       ++SendFrame.data[0];
 
-    Serial.println(loopTime);
+    //Serial.println(loopTime);
 
     can0.sendFrame(&SendFrame);
+
+    CanFrame RecvFrame; 
+    if (!can0.inbox.empty()) {
+      can0.inbox.pop(RecvFrame);
+
+      Serial.print("Last Received : ");
+      Serial.println(can0.lastRecv());
+      Serial.print("ID : 0x");
+      Serial.println(RecvFrame.canId, HEX);
+      Serial.print("DLC : ");
+      Serial.println(RecvFrame.canDlc);
+      Serial.print("Value Signal : ");
+      Serial.println(RecvFrame.GetUnsigned(1, 0, 8));
+    } 
+
 
     loopTime = millis();
   }
