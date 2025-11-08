@@ -1,7 +1,4 @@
 #include "StCANFD.hpp"
-#include "wiring_constants.h"
-#include <cstdint>
-#include <cstring>
 
 // global channel definition
 FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };

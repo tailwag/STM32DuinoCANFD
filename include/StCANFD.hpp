@@ -1,12 +1,8 @@
 #include "stm32_def.h"
 #include "stm32g474xx.h"
-#include "stm32g4xx_hal_fdcan.h"
 #include "stm32g4xx_hal_rcc.h"
-#include <cstdint>
-#include <cstring>
-#include "stm32g474xx.h"
 #include "stm32g4xx_hal_fdcan.h"
-#include <cstdint>
+
 #ifndef _MAINH
 #include "main.hpp"
 #endif // !_MAINH
