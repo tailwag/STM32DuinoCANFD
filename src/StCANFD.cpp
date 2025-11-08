@@ -77,62 +77,57 @@ uint8_t DlcToLen(uint8_t dlcIn) {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
-uint16_t getMotorolaBit(uint16_t startBit, uint8_t i) {
-    uint16_t byteIndex = startBit / 8;
-    uint16_t bitInByte = startBit % 8;
-
-    int8_t bitPos = bitInByte - i; // go down in current byte
-    if (bitPos < 0) {
-        // move to next higher byte
-        byteIndex += (-(bitPos) + 7) / 8;
-        bitPos = 7 - ((-bitPos - 1) % 8);
-    }
-    return byteIndex * 8 + bitPos;
-}
-
 /* --------------------------------------------------------------- *
  * -- METHOD DEFINITIONS: CanFrame class                        -- *
  * --------------------------------------------------------------- */
+
+// initialize empty frame 
 CanFrame::CanFrame() {
   canId = 0;
   canDlc = 0;
-  
-  for (uint8_t i = 0; i < 64; i++) {
-    data[i] = 0;
-  }
-
   brs = true;
+
+  memset(data, 0, sizeof(data));
 }
 
+// empty out data array 
 void CanFrame::clear() {
   memset(data, 0, sizeof(data));
 }
 
+// get unsigned data. this is our most important read function. every other data 
+// type relies on this function to first get the "raw bits" out of the message
 uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) {
-  uint32_t retVal = 0;
-  int8_t firstByte = -1;
+  uint32_t retVal  =  0; // value that all our bits get or'd into
+  int8_t firstByte = -1; // use as a flag and also byte offset
   
 
   for(uint8_t i = 0; i < length; i++) {
-    uint16_t absBit = startBit + i;
-    uint8_t byteIndex = absBit / 8;
+    uint16_t absBit = startBit + i;  // walk over each individual bit
+    uint8_t byteIndex = absBit / 8;  // get the byte number we're on
 
-    if (firstByte < 0) firstByte = byteIndex;
+    if (order == Intel) { // yay the bits are in the correct order
+      uint8_t shiftBy  = absBit % 8; 
 
-    if (order == Little) {
-      uint8_t bitIndex  = absBit % 8;
-      uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
+      // bring bits down to right place and isolate individual bit
+      uint8_t bit = (data[byteIndex] >> shiftBy) & 1u;
 
+      // add to return value
       retVal |= bit << i;
     }
-    else {
+    else {               // motorola format >:(
+      // set first byte value. this is used to reverse the 
+      // direction in which we travel through the byte array
+      if (firstByte < 0) firstByte = byteIndex;
+
       // move up instead of down
       if (byteIndex != firstByte) 
         byteIndex = firstByte - (byteIndex - firstByte);
 
-      uint8_t bitIndex = absBit % 8; 
-      int8_t  shiftBy  = bitIndex - i;
+      // get shift value. positive/negative indicates direction
+      int8_t shiftBy  = (absBit % 8) - i;
 
+      // add value to return value
       if (shiftBy >= 0)
         retVal |= (data[byteIndex] >>  shiftBy) & (1u << i);
       else 
@@ -143,6 +138,8 @@ uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) 
   return retVal;
 }
 
+// arbitrary length signed values. we handle moving the sign
+// bit on our own so we can return a fixed size signed int
 int32_t CanFrame::GetSigned(uint16_t startBit, uint8_t length, Endian order) {
   // get raw bits in unsigned value
   uint32_t rawValue = GetUnsigned(startBit, length, order);
@@ -160,49 +157,49 @@ int32_t CanFrame::GetSigned(uint16_t startBit, uint8_t length, Endian order) {
   return static_cast<int32_t>(rawValue);
 }
 
+// this is the one time I like floats. the can float 
+// data types are the same fixed lengths as in c++
 float CanFrame::GetFloat(uint16_t startBit, uint8_t length, Endian order) {
   uint32_t rawValue = GetUnsigned(startBit, length, order);
-  float retVal = * ( float * ) &rawValue;
+  float retVal = * ( float * ) &rawValue; // evil floating point bit hacking 
+
   return retVal;
 }
+
+// main data set function. just like with the receive side, the other data 
+// set commands rely on this function to actually write the data into the array 
 void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order) {
-  // bit manipulation to get the max unsigned value 
-  uint32_t upper = (1u << length) - 1;
+  int8_t firstByte = -1;
+  uint32_t upper = (1u << length) - 1;     // get max unsigned value
   
   value = (value > upper) ? upper : value; // make sure value doesn't exceed limit
   value = (value < 0)     ? 0     : value; // if this evals true something has gone horribly wrong
                                            
-  int8_t firstByte = -1;
-                                           
   for (uint8_t i = 0; i < length; i++) {
-    uint8_t bit, bitIndex;
-    uint16_t absBit = startBit + i;
-    uint8_t byteIndex = absBit / 8;
+    uint8_t bit, shiftVal;
+    uint16_t absBit = startBit + i; // absolute position of bit we're on
+    uint8_t byteIndex = absBit / 8; // calculate which byte we're on
 
-    if (firstByte < 0) firstByte = byteIndex; 
+    if (order == Motorola) {
+      // set first byte value. this is used to reverse the
+      // direction in which we travel through the byte array
+      if (firstByte < 0) firstByte = byteIndex; 
 
-    if (order == Little) {
-      bitIndex  = absBit % 8; 
-
-      // bring target bit down into position 0, then mask it out
-      bit = (value >> i) & 1u;
-    }
-    else {
-      // reverse byte order relative to firstByte
+      // go up not down
       if (byteIndex != firstByte)
         byteIndex = firstByte - (byteIndex - firstByte);
-
-      // MSB-first within the byte
-      bitIndex = (absBit % 8);
-      bit = (value >> i) & 1u;
     }
     
+    bit = (value >> i) & 1u;
+    shiftVal  = absBit % 8; 
+    
     if (bit)
-        data[byteIndex] |= (1u << bitIndex);
+        data[byteIndex] |=  (1u << shiftVal);
     else
-        data[byteIndex] &= ~(1u << bitIndex);
+        data[byteIndex] &= ~(1u << shiftVal);
   }
 }
+
 // convert signed bits to unsigned int value and use SetUnsigned to set value
 // we have to manually mover the sign bit, because can signed ints are variable length
 void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian order) {
@@ -228,7 +225,7 @@ void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian
 // convert float value bits to unsigned int value and use SetUnsigned to set value
 // this is convenient, because can floats are always 32 bits
 void CanFrame::SetFloat(float value, uint8_t startBit, uint8_t length, Endian order) {
-  uint32_t longVal = * ( uint32_t * ) &value;
+  uint32_t longVal = * ( uint32_t * ) &value; // evil floating point bit hacking
   SetUnsigned(longVal, startBit, length, order);
 }
 
@@ -316,6 +313,7 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
   }
 }
 
+// global array with pointers back the each can channel object
 FDCanChannel* FDCanChannel::Instances[3] = { nullptr, nullptr, nullptr };
 
 void FDCanChannel::handleRxInterrupt() {
@@ -334,6 +332,12 @@ void FDCanChannel::handleRxInterrupt() {
 void FDCanChannel::start(void) {
   __HAL_RCC_FDCAN_CLK_ENABLE();
   HAL_FDCAN_Start(&Interface);
+
+  // enable receive callback. when a message is received, it fires 
+  // the callback definied at the top of this file. that callback then
+  // looks up a pointer to the object of the corresponding channel,
+  // then fires the handleRxInterrupt() method. this add's the message 
+  // to the channel object's included "mailbox", which is a ring buffer
   HAL_FDCAN_ActivateNotification(&Interface, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
   // Enable IRQ in NVIC
@@ -386,6 +390,27 @@ void FDCanChannel::sendFrame(CanFrame * Frame) {
 
   if (halOpStatus != HAL_OK) 
     Error_Handler();
+}
+
+/* ---------------------------------------------------- *
+ * -- RECEIVE CALLBACK FUNCTION - CALLED BY HAL      -- *
+ * ---------------------------------------------------- */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+  if(!(RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE))
+    return;
+
+  for (int i = 0; i < 3; i++) {
+    // get hardware channel ID for iterator from enum 
+    HwCanChannel c = static_cast<HwCanChannel>(i);
+
+    // FDCanChannel::getInstance(HwCanChannel) returns pointer to object
+    // if an instance hasn't been initialized yet, it returns a nullptr
+    if (FDCanChannel::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
+      // use the interupt handler for the specific channel
+      FDCanChannel::getInstance(c)->handleRxInterrupt();
+      break;
+    }
+  }
 }
 
 // function to initialize the physical interface in the HAL 
@@ -467,21 +492,3 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
   }
 }
 
-// receive callback function
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-  if(!(RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE))
-    return;
-
-  for (int i = 0; i < 3; i++) {
-    // get hardware channel ID for iterator from enum 
-    HwCanChannel c = static_cast<HwCanChannel>(i);
-
-    // FDCanChannel::getInstance(HwCanChannel) returns pointer to object
-    // if an instance hasn't been initialized yet, it returns a nullptr
-    if (FDCanChannel::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
-      // use the interupt handler for the specific channel
-      FDCanChannel::getInstance(c)->handleRxInterrupt();
-      break;
-    }
-  }
-}

@@ -51,8 +51,8 @@ enum Bitrate {
 };
 
 enum Endian {
-  Little, 
-  Big,
+  Intel, 
+  Motorola,
 };
 
 uint8_t DlcToLen(uint8_t dlcIn);
@@ -66,13 +66,13 @@ class CanFrame {
 
     void clear();
     
-    uint32_t GetUnsigned(uint16_t startBit, uint8_t length, Endian order = Little);
-    int32_t    GetSigned(uint16_t startBit, uint8_t length, Endian order = Little);
-    float       GetFloat(uint16_t startBit, uint8_t length, Endian order = Little);
+    uint32_t GetUnsigned(uint16_t startBit, uint8_t length, Endian order = Intel);
+    int32_t    GetSigned(uint16_t startBit, uint8_t length, Endian order = Intel);
+    float       GetFloat(uint16_t startBit, uint8_t length, Endian order = Intel);
 
-    void     SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order = Little);
-    void       SetSigned(int32_t value,  uint8_t startBit, uint8_t length, Endian order = Little);
-    void        SetFloat(float value,    uint8_t startBit, uint8_t length, Endian order = Little);
+    void     SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order = Intel);
+    void       SetSigned(int32_t value,  uint8_t startBit, uint8_t length, Endian order = Intel);
+    void        SetFloat(float value,    uint8_t startBit, uint8_t length, Endian order = Intel);
 
     CanFrame();
 };
@@ -102,14 +102,13 @@ class FDCanChannel {
 
   public:
     CanInbox inbox;
+    void start(void);
+    void handleRxInterrupt();
+    void sendFrame(CanFrame * Frame);
     uint32_t lastSend() const { return timeLastRecv; }
     uint32_t lastRecv() const { return timeLastSend; }
-    void start(void);
-    void sendFrame(CanFrame * Frame);
-    void handleRxInterrupt();
-
-    static FDCanChannel *getInstance(HwCanChannel chan) { return Instances[chan]; }
     FDCAN_HandleTypeDef *getHandle() { return &Interface; }
+    static FDCanChannel *getInstance(HwCanChannel chan) { return Instances[chan]; }
 
     FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate);
 };

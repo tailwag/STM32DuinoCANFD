@@ -57,9 +57,9 @@ void loop() {
     // motorola format
     SendFrameBig.canId  = 0x7EF;
     SendFrameBig.canDlc = 8;
-    SendFrameBig.SetSigned(20, 22, 4, Big);
-    SendFrameBig.SetUnsigned(16, 30, 4, Big);
-    SendFrameBig.SetFloat(-2, 56, 32, Big);
+    SendFrameBig.SetSigned(-20, 22, 4, Motorola);
+    SendFrameBig.SetUnsigned(16, 30, 4, Motorola);
+    SendFrameBig.SetFloat(-2.32123, 56, 32, Motorola);
 
     if (SendFrameBig.data[0] == 255)
       SendFrameBig.data[0] = 0;
@@ -81,13 +81,13 @@ void loop() {
 
         Serial.print("Auto Inc : ");
         // little endian frame
-        Serial.println(RecvFrame.GetUnsigned(0, 8, Little));
+        Serial.println(RecvFrame.GetUnsigned(0, 8, Intel));
         Serial.print("Signed   : ");
-        Serial.println(RecvFrame.GetSigned(14, 4, Little));
+        Serial.println(RecvFrame.GetSigned(14, 4, Intel));
         Serial.print("Unsigned : ");
-        Serial.println(RecvFrame.GetUnsigned(22, 4, Little));
+        Serial.println(RecvFrame.GetUnsigned(22, 4, Intel));
         Serial.print("Float    : ");
-        Serial.println(RecvFrame.GetFloat(32, 32, Little));
+        Serial.println(RecvFrame.GetFloat(32, 32, Intel));
         Serial.println();
       }
       else if (RecvFrame.canId == 0x7EE) {
@@ -98,13 +98,13 @@ void loop() {
 
         Serial.print("Auto Inc : ");
         // big endian frame
-        Serial.println(RecvFrame.GetUnsigned(0, 8, Big));
+        Serial.println(RecvFrame.GetUnsigned(0, 8, Motorola));
         Serial.print("Signed   : ");
-        Serial.println(RecvFrame.GetSigned(22, 4, Big));
+        Serial.println(RecvFrame.GetSigned(22, 4, Motorola));
         Serial.print("Unsigned : ");
-        Serial.println(RecvFrame.GetUnsigned(30, 4, Big));
+        Serial.println(RecvFrame.GetUnsigned(30, 4, Motorola));
         Serial.print("Float    : ");
-        Serial.println(RecvFrame.GetFloat(56, 32, Big));
+        Serial.println(RecvFrame.GetFloat(56, 32, Motorola));
         Serial.println();
 
       }
