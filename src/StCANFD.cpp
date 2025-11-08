@@ -113,16 +113,34 @@ void CanFrame::clear() {
 
 uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) {
   uint32_t retVal = 0;
+  int8_t firstByte = -1;
   
+
   for(uint8_t i = 0; i < length; i++) {
     uint16_t absBit = startBit + i;
-
     uint8_t byteIndex = absBit / 8;
-    uint8_t bitIndex  = absBit % 8;
 
-    uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
+    if (firstByte < 0) firstByte = byteIndex;
 
-    retVal |= bit << i;
+    if (order == Little) {
+      uint8_t bitIndex  = absBit % 8;
+      uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
+
+      retVal |= bit << i;
+    }
+    else {
+      // move up instead of down
+      if (byteIndex != firstByte) 
+        byteIndex = firstByte - (byteIndex - firstByte);
+
+      uint8_t bitIndex = absBit % 8; 
+      int8_t  shiftBy  = bitIndex - i;
+
+      if (shiftBy >= 0)
+        retVal |= (data[byteIndex] >>  shiftBy) & (1u << i);
+      else 
+        retVal |= (data[byteIndex] << -shiftBy) & (1u << i);
+    }
   }
 
   return retVal;
@@ -150,7 +168,6 @@ float CanFrame::GetFloat(uint16_t startBit, uint8_t length, Endian order) {
   float retVal = * ( float * ) &rawValue;
   return retVal;
 }
-
 void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order) {
   // bit manipulation to get the max unsigned value 
   uint32_t upper = (1u << length) - 1;
@@ -158,23 +175,37 @@ void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, End
   value = (value > upper) ? upper : value; // make sure value doesn't exceed limit
   value = (value < 0)     ? 0     : value; // if this evals true something has gone horribly wrong
                                            
+  int8_t firstByte = -1;
+                                           
   for (uint8_t i = 0; i < length; i++) {
+    uint8_t bit, bitIndex;
     uint16_t absBit = startBit + i;
-
     uint8_t byteIndex = absBit / 8;
-    uint8_t bitIndex  = absBit % 8; 
 
-    // bring target bit down into position 0, then mask it out
-    uint8_t bit = (value >> i) & 1u;
+    if (firstByte < 0) firstByte = byteIndex; 
 
-    // set or clear bit 
+    if (order == Little) {
+      bitIndex  = absBit % 8; 
+
+      // bring target bit down into position 0, then mask it out
+      bit = (value >> i) & 1u;
+    }
+    else {
+      // reverse byte order relative to firstByte
+      if (byteIndex != firstByte)
+        byteIndex = firstByte - (byteIndex - firstByte);
+
+      // MSB-first within the byte
+      bitIndex = (absBit % 8);
+      bit = (value >> i) & 1u;
+    }
+    
     if (bit)
-      data[byteIndex] |=  (1u << bitIndex);
-    else 
-      data[byteIndex] &= ~(1u << bitIndex);
+        data[byteIndex] |= (1u << bitIndex);
+    else
+        data[byteIndex] &= ~(1u << bitIndex);
   }
 }
-
 // convert signed bits to unsigned int value and use SetUnsigned to set value
 // we have to manually mover the sign bit, because can signed ints are variable length
 void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian order) {

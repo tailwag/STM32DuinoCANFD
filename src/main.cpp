@@ -4,6 +4,7 @@
 
 uint32_t loopTime;
 CanFrame SendFrame;
+CanFrame SendFrameBig;
 
 FDCanChannel can0(HwCanChannel::CH1, Bitrate::b500000, Bitrate::b2000000); 
 
@@ -34,6 +35,7 @@ void setup() {
 void loop() {
   if (millis() - loopTime >= 500) {
 
+    // intel format
     SendFrame.canId  = 0x0F0;
     SendFrame.canDlc = 8;
     
@@ -49,6 +51,22 @@ void loop() {
     //Serial.println(loopTime);
 
     can0.sendFrame(&SendFrame);
+    // end intel format sendFrame
+
+
+    // motorola format
+    SendFrameBig.canId  = 0x7EF;
+    SendFrameBig.canDlc = 8;
+    SendFrameBig.SetSigned(20, 22, 4, Big);
+    SendFrameBig.SetUnsigned(16, 30, 4, Big);
+    SendFrameBig.SetFloat(-2, 56, 32, Big);
+
+    if (SendFrameBig.data[0] == 255)
+      SendFrameBig.data[0] = 0;
+    else 
+      ++SendFrameBig.data[0];
+
+    can0.sendFrame(&SendFrameBig);
 
     CanFrame RecvFrame; 
     if (!can0.inbox.empty()) {
@@ -72,23 +90,24 @@ void loop() {
         Serial.println(RecvFrame.GetFloat(32, 32, Little));
         Serial.println();
       }
-      // else if (RecvFrame.canId == 0x7EE) {
-      //   // Big endian
-      //   Serial.print("-------- 0x"); 
-      //   Serial.print(RecvFrame.canId, HEX);
-      //   Serial.println(" --------");
+      else if (RecvFrame.canId == 0x7EE) {
+        // Big endian
+        Serial.print("-------- 0x"); 
+        Serial.print(RecvFrame.canId, HEX);
+        Serial.println(" --------");
 
-      //   Serial.print("Auto Inc : ");
-      //   // big endian frame
-      //   Serial.println(RecvFrame.GetUnsigned(0, 8, Big));
-      //   Serial.print("Signed   : ");
-      //   Serial.println(RecvFrame.GetSigned(22, 4, Big));
-      //   Serial.print("Unsigned : ");
-      //   Serial.println(RecvFrame.GetUnsigned(30, 4, Big));
-      //   Serial.print("Float    : ");
-      //   Serial.println(RecvFrame.GetFloat(56, 32, Big));
-      //   Serial.println();
-      // }
+        Serial.print("Auto Inc : ");
+        // big endian frame
+        Serial.println(RecvFrame.GetUnsigned(0, 8, Big));
+        Serial.print("Signed   : ");
+        Serial.println(RecvFrame.GetSigned(22, 4, Big));
+        Serial.print("Unsigned : ");
+        Serial.println(RecvFrame.GetUnsigned(30, 4, Big));
+        Serial.print("Float    : ");
+        Serial.println(RecvFrame.GetFloat(56, 32, Big));
+        Serial.println();
+
+      }
     } 
 
 
