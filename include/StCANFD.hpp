@@ -70,13 +70,13 @@ class CanFrame {
 
     void clear();
     
-    uint32_t GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
-    int32_t    GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
-    float       GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    uint32_t GetUnsigned(uint16_t startBit, uint8_t length, Endian order = Little);
+    int32_t    GetSigned(uint16_t startBit, uint8_t length, Endian order = Little);
+    float       GetFloat(uint16_t startBit, uint8_t length, Endian order = Little);
 
-    void     SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
-    void       SetSigned(int32_t value,  uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
-    void        SetFloat(float value,    uint8_t startByte, uint8_t startBit, uint8_t length, Endian order = Little);
+    void     SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order = Little);
+    void       SetSigned(int32_t value,  uint8_t startBit, uint8_t length, Endian order = Little);
+    void        SetFloat(float value,    uint8_t startBit, uint8_t length, Endian order = Little);
 
     CanFrame();
 };

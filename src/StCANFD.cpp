@@ -1,9 +1,16 @@
 #include "StCANFD.hpp"
+#include "wiring_constants.h"
+#include <cstdint>
 #include <cstring>
 
 // global channel definition
 FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };
 
+/* --------------------------------------------------- *
+ * -- global interupt handlers                      -- *
+ * -- these catch the global interupts and call the -- *
+ * -- interupt handlers within each channel object  -- *
+ * --------------------------------------------------- */
 extern "C" void FDCAN1_IT0_IRQHandler(void) {
   auto inst = FDCanChannel::getInstance(CH1);
   if (inst)
@@ -34,16 +41,18 @@ uint8_t DlcToLen(uint8_t dlcIn) {
   return d[dlcIn];
 }
 
-// enum Bitrate in StCANFD.hpp contains possible bitrates 
-// this is used to index this array to get the timing values 
-// FDCANScalers[Bitrate::b500000] returns a struct with 
-// Prescaler=20, SyncJump=1, Segment1=13, Segment2=2 
-// these values are used to initialize the HAL CAN hardware 
-// and hit the desired bitrate. The values below were calculated
-// assuming your clock is running at 160MHz. the g474re's default
-// clock is 170MHz, which doesn't divide neatly into most CANFD 
-// bitrates, so setting it to 160MHz is important.
-FDCAN_ScalerStruct FDCANScalers[24] = {
+/* -------------------------------------------------------------------- *
+ * -- enum Bitrate in StCANFD.hpp contains possible bitrates         -- * 
+ * -- this is used to index this array to get the timing values      -- *
+ * -- FDCANScalers[Bitrate::b500000] returns a struct with           -- *
+ * -- Prescaler=20, SyncJump=1, Segment1=13, Segment2=2              -- *
+ * -- these values are used to initialize the HAL CAN hardware       -- *
+ * -- and hit the desired bitrate. The values below were calculated  -- *
+ * -- assuming your clock is running at 160MHz. the g474re's default -- *
+ * -- clock is 170MHz, which doesn't divide neatly into most CANFD   -- *
+ * -- bitrates, so setting it to 160MHz is important.                -- *
+ * -------------------------------------------------------------------- */
+ FDCAN_ScalerStruct FDCANScalers[24] = {
   // prescaler, sync, seg1, seg2 
   {320, 1, 13, 2}, //  32,250 bps
   {300, 1, 13, 2}, //  33,333 bps
@@ -71,6 +80,18 @@ FDCAN_ScalerStruct FDCANScalers[24] = {
   { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
 };
 
+uint16_t getMotorolaBit(uint16_t startBit, uint8_t i) {
+    uint16_t byteIndex = startBit / 8;
+    uint16_t bitInByte = startBit % 8;
+
+    int8_t bitPos = bitInByte - i; // go down in current byte
+    if (bitPos < 0) {
+        // move to next higher byte
+        byteIndex += (-(bitPos) + 7) / 8;
+        bitPos = 7 - ((-bitPos - 1) % 8);
+    }
+    return byteIndex * 8 + bitPos;
+}
 
 /* --------------------------------------------------------------- *
  * -- METHOD DEFINITIONS: CanFrame class                        -- *
@@ -90,33 +111,26 @@ void CanFrame::clear() {
   memset(data, 0, sizeof(data));
 }
 
-uint32_t CanFrame::GetUnsigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
-  // value that eventually gets returned
+uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) {
   uint32_t retVal = 0;
+  
+  for(uint8_t i = 0; i < length; i++) {
+    uint16_t absBit = startBit + i;
 
-  // calculate absolute start bit position
-  uint16_t absStart = startByte * 8 + startBit; 
+    uint8_t byteIndex = absBit / 8;
+    uint8_t bitIndex  = absBit % 8;
 
-  for (uint8_t i = 0; i < length; i++) {
-    // calculate target bit index
-    uint16_t bitPos = absStart + i; 
-
-    uint8_t byteIndex = bitPos / 8; // integer division, no remainder
-    uint8_t bitIndex  = bitPos % 8; // get remainder
-
-    // isolate individual bit
     uint8_t bit = (data[byteIndex] >> bitIndex) & 1u;
 
-    // put isolated bit into return value
-    retVal |= (static_cast<uint32_t>(bit) << i);
+    retVal |= bit << i;
   }
 
   return retVal;
 }
 
-int32_t CanFrame::GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+int32_t CanFrame::GetSigned(uint16_t startBit, uint8_t length, Endian order) {
   // get raw bits in unsigned value
-  uint32_t rawValue = GetUnsigned(startByte, startBit, length, order);
+  uint32_t rawValue = GetUnsigned(startBit, length, order);
 
   // shift the sign bit down to determine if value is negative
   bool isNeg = rawValue >> (length - 1) & 1u; 
@@ -131,30 +145,24 @@ int32_t CanFrame::GetSigned(uint8_t startByte, uint8_t startBit, uint8_t length,
   return static_cast<int32_t>(rawValue);
 }
 
-float CanFrame::GetFloat(uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
-  uint32_t rawValue = GetUnsigned(startByte, startBit, length);
+float CanFrame::GetFloat(uint16_t startBit, uint8_t length, Endian order) {
+  uint32_t rawValue = GetUnsigned(startBit, length, order);
   float retVal = * ( float * ) &rawValue;
   return retVal;
 }
 
-void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order) {
   // bit manipulation to get the max unsigned value 
-  // -1 of a signed value is all ones, shift left to introduce 0s 
-  // invert to change all 0s to 1s and vise versa
-  uint32_t upper = static_cast<uint32_t>(~(-1 << length));
-
+  uint32_t upper = (1u << length) - 1;
+  
   value = (value > upper) ? upper : value; // make sure value doesn't exceed limit
   value = (value < 0)     ? 0     : value; // if this evals true something has gone horribly wrong
                                            
-  // calculate the absolute bit start position
-  uint16_t absStart = startByte * 8 + startBit;
-
   for (uint8_t i = 0; i < length; i++) {
-    // calculate target bit index
-    uint16_t bitPos = absStart + i;
+    uint16_t absBit = startBit + i;
 
-    uint8_t byteIndex = bitPos / 8; // integer division, no remainder
-    uint8_t bitIndex  = bitPos % 8; // get remainder
+    uint8_t byteIndex = absBit / 8;
+    uint8_t bitIndex  = absBit % 8; 
 
     // bring target bit down into position 0, then mask it out
     uint8_t bit = (value >> i) & 1u;
@@ -169,7 +177,7 @@ void CanFrame::SetUnsigned(uint32_t value, uint8_t startByte, uint8_t startBit, 
 
 // convert signed bits to unsigned int value and use SetUnsigned to set value
 // we have to manually mover the sign bit, because can signed ints are variable length
-void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian order) {
   // bit manipulation to get upper and lower limits
   int32_t lower = -1 << (length - 1);
   int32_t upper = ~lower;
@@ -186,14 +194,14 @@ void CanFrame::SetSigned(int32_t value, uint8_t startByte, uint8_t startBit, uin
   value &= bitmask; 
 
   // set the value 
-  SetUnsigned(value, startByte, startBit, length, order);
+  SetUnsigned(value, startBit, length, order);
 }
 
 // convert float value bits to unsigned int value and use SetUnsigned to set value
 // this is convenient, because can floats are always 32 bits
-void CanFrame::SetFloat(float value, uint8_t startByte, uint8_t startBit, uint8_t length, Endian order) {
+void CanFrame::SetFloat(float value, uint8_t startBit, uint8_t length, Endian order) {
   uint32_t longVal = * ( uint32_t * ) &value;
-  SetUnsigned(longVal, startByte, startBit, length, order);
+  SetUnsigned(longVal, startBit, length, order);
 }
 
 /* --------------------------------------------------------------- *
