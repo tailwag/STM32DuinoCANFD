@@ -63,7 +63,7 @@ void loop() {
         outputDutyCycle = RecvFrame.GetFloat(32, 32); 
 
         // set the output pwm to the calues we received over can
-        pwmOut.setFrequency((uint32_t)outputFrequency); 
+        pwmOut.setFrequency(outputFrequency); 
         pwmOut.setDutyCycle(outputDutyCycle); 
       }
     }

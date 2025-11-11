@@ -8,11 +8,11 @@ void captureWrapper() {
     inputInstances[N]->handleCapture();
 }
 
-using CaptureFunc = void(*)(); 
+using CaptureFunc = void(*)();
 
 static const CaptureFunc captureWrappers[32] = {
-  captureWrapper<0>, captureWrapper<1>, captureWrapper<2>, captureWrapper<3>, captureWrapper<4>, 
-  captureWrapper<5>, captureWrapper<6>, captureWrapper<7>, captureWrapper<8>, captureWrapper<9>,
+  captureWrapper<0>,  captureWrapper<1>,  captureWrapper<2>,  captureWrapper<3>,  captureWrapper<4>, 
+  captureWrapper<5>,  captureWrapper<6>,  captureWrapper<7>,  captureWrapper<8>,  captureWrapper<9>,
   captureWrapper<10>, captureWrapper<11>, captureWrapper<12>, captureWrapper<13>, captureWrapper<14>,
   captureWrapper<15>, captureWrapper<16>, captureWrapper<17>, captureWrapper<18>, captureWrapper<19>,
   captureWrapper<20>, captureWrapper<21>, captureWrapper<22>, captureWrapper<23>, captureWrapper<24>,
@@ -21,17 +21,17 @@ static const CaptureFunc captureWrappers[32] = {
 };
 
 TIM_TypeDef * getTimerForPin(uint8_t pin) {
-    for (auto &m : timerPinChannels) {
-        if (m.pin == pin) return m.timer; 
-    }
-    return nullptr; // not found
+  for (auto &m : timerPinChannels) {
+    if (m.pin == pin) return m.timer; 
+  }
+  return nullptr; // not found
 }
 
 int8_t getChannelForPin(uint8_t pin) {
-    for (auto &m : timerPinChannels) {
-        if (m.pin == pin) return m.channel; 
-    }
-    return -1;
+  for (auto &m : timerPinChannels) {
+    if (m.pin == pin) return m.channel; 
+  }
+  return -1;
 }
 
 int8_t getOutputIdForPin(uint8_t pin) {
@@ -71,7 +71,7 @@ TIM_TypeDef *STM32HALPWM::getTimerInstance() const {
 /*  ---------------------------  *
  *  -- PWM GENERATOR CLASS   --  *
  *  ---------------------------  */
-OutputPWM::OutputPWM(uint8_t pin, uint32_t freq, float dutyCycle)
+OutputPWM::OutputPWM(uint8_t pin, float freq, float dutyCycle)
   : STM32HALPWM(pin), frequency(freq), dutyCycle(dutyCycle) {}
 
 void OutputPWM::begin() {
@@ -87,7 +87,7 @@ void OutputPWM::end() {
   initialized = false;
 }
 
-void OutputPWM::setFrequency(uint32_t freq) {
+void OutputPWM::setFrequency(float freq) {
   frequency = freq;
   if (initialized)
     halTimer->setOverflow(frequency, HERTZ_FORMAT);

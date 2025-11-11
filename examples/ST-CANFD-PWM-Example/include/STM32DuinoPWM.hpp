@@ -1,8 +1,5 @@
 #include "STM32DuinoPWM_PinDefs.hpp"
-#include "stm32g474xx.h"
 #include <Arduino.h>
-#include <cstdint>
-#include <sys/types.h>
 
 enum PwmRange {
   LOWFREQ, 
@@ -41,11 +38,11 @@ class STM32HALPWM {
  *  ---------------------------  */
 class OutputPWM : public STM32HALPWM {
   private:
-    uint32_t frequency;
+    float frequency;
     float dutyCycle;
 
   public:
-    OutputPWM(uint8_t pin, uint32_t freq = 128, float duty = 50.0f);
+    OutputPWM(uint8_t pin, float freq = 128, float duty = 50.0f);
 
     void begin() override;
     void   end() override;
@@ -53,10 +50,10 @@ class OutputPWM : public STM32HALPWM {
     void enable();
     void disable();
 
-    void setFrequency(uint32_t freq);
+    void setFrequency(float freq);
     void setDutyCycle(float duty);
 
-    float getFrequency() const { return static_cast<float>(frequency); }
+    float getFrequency() const { return frequency; }
     float getDutyCycle() const { return dutyCycle; }
 };
 
