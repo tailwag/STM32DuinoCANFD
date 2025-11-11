@@ -102,7 +102,7 @@ class FDCanChannel {
 
   public:
     CanInbox inbox;
-    void start(void);
+    void begin(void);
     void handleRxInterrupt();
     void sendFrame(CanFrame * Frame);
     uint32_t lastSend() const { return timeLastRecv; }

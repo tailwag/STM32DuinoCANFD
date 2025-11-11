@@ -329,7 +329,7 @@ void FDCanChannel::handleRxInterrupt() {
   timeLastRecv = HAL_GetTick();
 }
 
-void FDCanChannel::start(void) {
+void FDCanChannel::begin(void) {
   __HAL_RCC_FDCAN_CLK_ENABLE();
   HAL_FDCAN_Start(&Interface);
 

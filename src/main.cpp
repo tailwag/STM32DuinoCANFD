@@ -28,7 +28,7 @@ void setup() {
 
   loopTime = millis();
 
-  can0.start();
+  can0.begin();
 
 }
 
