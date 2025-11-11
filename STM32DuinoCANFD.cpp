@@ -1,4 +1,5 @@
-#include "StCANFD.hpp"
+#include "STM32DuinoCANFD.hpp"
+#include <cstdint>
 
 // global channel definition
 FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };
@@ -386,7 +387,7 @@ void FDCanChannel::sendFrame(CanFrame * Frame) {
   TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
   TxHeader.MessageMarker       = 0;
 
-  byte halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
+  uint8_t halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
 
   if (halOpStatus != HAL_OK) 
     Error_Handler();

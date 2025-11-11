@@ -1,3 +1,6 @@
 .pio
 .cache
 compile_commands.json
+examples/*/.pio
+examples/*/.cache
+examples/*/compile_commands.json

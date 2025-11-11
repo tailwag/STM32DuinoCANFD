@@ -1,14 +1,13 @@
+#include <Arduino.h>
 #include "stm32_def.h"
 #include "stm32g474xx.h"
 #include "stm32g4xx_hal_rcc.h"
 #include "stm32g4xx_hal_fdcan.h"
 
-#ifndef _MAINH
-#include "main.hpp"
-#endif // !_MAINH
-
 #ifndef _STCANFDHPP
 #define _STCANFDHPP
+
+#define HAL_FDCAN_MODULE_ENABLED
 
 struct FDCAN_ScalerStruct {
   uint16_t Prescaler;
