@@ -1,4 +1,7 @@
 #include "STM32DuinoPWM.hpp"
+#include "HardwareTimer.h"
+#include "stm32g474xx.h"
+#include <cstdint>
 
 static InputPWM *inputInstances[32] = {nullptr};
 
@@ -19,6 +22,19 @@ static const CaptureFunc captureWrappers[32] = {
   captureWrapper<25>, captureWrapper<26>, captureWrapper<27>, captureWrapper<28>, captureWrapper<29>,
   captureWrapper<30>, captureWrapper<31>
 };
+
+// static map of active timers
+static HardwareTimer *sharedTimers[8] = {nullptr};
+
+static inline uint8_t getTimerIndex(TIM_TypeDef *t) {
+  if (t == TIM1) return 0;
+  if (t == TIM2) return 1;
+  if (t == TIM3) return 2;
+  if (t == TIM4) return 3;
+  if (t == TIM5) return 4;
+  if (t == TIM8) return 5;
+  return 7; 
+}
 
 TIM_TypeDef * getTimerForPin(uint8_t pin) {
   for (auto &m : timerPinChannels) {
@@ -52,15 +68,19 @@ STM32HALPWM::STM32HALPWM(uint8_t pin)
   TIM_TypeDef *timer = getTimerForPin(pin);
   channel  = getChannelForPin(pin);
   outputId = getOutputIdForPin(pin);
-  if (timer)
-    halTimer = new HardwareTimer(timer);
+
+  if (timer) {
+    uint8_t idx = getTimerIndex(timer); 
+    if (sharedTimers[idx] == nullptr) 
+      sharedTimers[idx] = new HardwareTimer(timer);
+
+    halTimer = sharedTimers[idx];
+  }
 }
 
 STM32HALPWM::~STM32HALPWM() {
-  if (halTimer) {
-    delete halTimer; 
+  if (halTimer)
     halTimer = nullptr;
-  }
 }
 
 TIM_TypeDef *STM32HALPWM::getTimerInstance() const {
