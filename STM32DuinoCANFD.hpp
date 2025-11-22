@@ -1,13 +1,39 @@
+/*  --------------------------------  *
+ *  --  STM32DuinoCANFD.hpp       --  *
+ *  --------------------------------  */
 #include <Arduino.h>
+#include "FDCANHAL.h"
 #include "stm32_def.h"
+
+#ifdef ARDUINO_NUCLEO_GOB1RE
+#include "stm32g0b1xx.h"
+#include "stm32g0xx_hal_def.h"
+#include "stm32g0xx_hal_rcc.h"
+#include "stm32g0xx_hal_fdcan.h"
+#endif
+#ifdef ARDUINO_NUCLEO_G474RE
 #include "stm32g474xx.h"
+#include "stm32g4xx_hal_def.h"
 #include "stm32g4xx_hal_rcc.h"
 #include "stm32g4xx_hal_fdcan.h"
+#endif
+#ifdef ARDUINO_NUCLEO_H753ZI
+#include "stm32h753xx.h"
+#include "stm32h7xx_hal_def.h"
+#include "stm32h7xx_hal_rcc.h"
+#include "stm32h7xx_hal_fdcan.h"
+#endif
 
 #ifndef _STCANFDHPP
 #define _STCANFDHPP
 
-#define HAL_FDCAN_MODULE_ENABLED
+#if defined (FDCAN3)
+#define NUM_INST 3 
+#elif defined (FDCAN2)
+#define NUM_INST 2 
+#elif defined (FDCAN1)
+#define NUM_INST 1
+#endif
 
 struct FDCAN_ScalerStruct {
     uint16_t Prescaler;
@@ -16,10 +42,12 @@ struct FDCAN_ScalerStruct {
     uint8_t  Segment2;
 };
 
+extern FDCAN_ScalerStruct FDCANScalers[24];
+
 enum HwCanChannel {
     CH1,
     CH2, 
-    CH3, 
+    CH3,
 };
 
 enum Bitrate {
@@ -97,13 +125,13 @@ class FDCanChannel {
         uint32_t timeLastSend;
         uint32_t timeLastRecv;
 
-        static FDCanChannel *Instances[3];
+        static FDCanChannel *Instances[NUM_INST];
 
     public:
         CanInbox inbox;
         void begin(void);
         void handleRxInterrupt();
-        void sendFrame(CanFrame * Frame);
+        HAL_StatusTypeDef sendFrame(CanFrame * Frame);
         uint32_t lastSend() const { return timeLastRecv; }
         uint32_t lastRecv() const { return timeLastSend; }
         FDCAN_HandleTypeDef *getHandle() { return &Interface; }

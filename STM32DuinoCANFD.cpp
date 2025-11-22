@@ -1,31 +1,52 @@
+/*  --------------------------------  *
+ *  --  STM32DuinoCANFD.cpp       --  *
+ *  --------------------------------  */
 #include "STM32DuinoCANFD.hpp"
-#include <cstdint>
 
 // global channel definition
-FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3 };
+#if defined FDCAN3
+FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3};
+#elif defined FDCAN2
+FDCAN_GlobalTypeDef * AvailableChannels[2] = { FDCAN1, FDCAN2};
+#elif defined FDCAN1
+FDCAN_GlobalTypeDef * AvailableChannels[1] = { FDCAN1 };
+#endif
 
 /* --------------------------------------------------- *
  * -- global interupt handlers                      -- *
  * -- these catch the global interupts and call the -- *
  * -- interupt handlers within each channel object  -- *
  * --------------------------------------------------- */
+#if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
+#ifdef FDCAN1
 extern "C" void FDCAN1_IT0_IRQHandler(void) {
     auto inst = FDCanChannel::getInstance(CH1);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
+#endif
 
+#ifdef FDCAN2
 extern "C" void FDCAN2_IT0_IRQHandler(void) {
     auto inst = FDCanChannel::getInstance(CH2);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
+#endif
 
+#ifdef FDCAN3
 extern "C" void FDCAN3_IT0_IRQHandler(void) {
     auto inst = FDCanChannel::getInstance(CH3);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
+#endif
+#elif defined (ARDUINO_NUCLEO_G0B1RE)
+extern "C" {
+    FDCAN_HandleTypeDef *phfdcan1 = NULL;
+    FDCAN_HandleTypeDef *phfdcan2 = NULL;
+}
+#endif
 
 // look up table for canfd dlc
 uint8_t DlcToLen(uint8_t dlcIn) {
@@ -38,45 +59,6 @@ uint8_t DlcToLen(uint8_t dlcIn) {
 
     return d[dlcIn];
 }
-
-/* -------------------------------------------------------------------- *
- * -- enum Bitrate in StCANFD.hpp contains possible bitrates         -- * 
- * -- this is used to index this array to get the timing values      -- *
- * -- FDCANScalers[Bitrate::b500000] returns a struct with           -- *
- * -- Prescaler=20, SyncJump=1, Segment1=13, Segment2=2              -- *
- * -- these values are used to initialize the HAL CAN hardware       -- *
- * -- and hit the desired bitrate. The values below were calculated  -- *
- * -- assuming your clock is running at 160MHz. the g474re's default -- *
- * -- clock is 170MHz, which doesn't divide neatly into most CANFD   -- *
- * -- bitrates, so setting it to 160MHz is important.                -- *
- * -------------------------------------------------------------------- */
- FDCAN_ScalerStruct FDCANScalers[24] = {
-  // prescaler, sync, seg1, seg2 
-  {320, 1, 13, 2}, //  32,250 bps
-  {300, 1, 13, 2}, //  33,333 bps
-  {250, 1, 13, 2}, //  40,000 bps
-  {200, 1, 13, 2}, //  50,000 bps
-  {160, 1, 13, 2}, //  62,500 bps
-  {125, 1, 13, 2}, //  80,000 bps
-  {120, 1, 13, 2}, //  83,333 bps
-  {100, 1, 13, 2}, // 100,000 bps
-  {80,  1, 13, 2}, // 125,000 bps
-  {50,  1, 17, 2}, // 160,000 bps
-  {50,  1, 13, 2}, // 200,000 bps
-  {40,  1, 13, 2}, // 250,000 bps
-  {20,  1, 17, 2}, // 400,000 bps  - works
-  {20,  1, 13, 2}, // 500,000 bps  - works
-  {20,  1,  7, 2}, // 800,000 bps  - works
-  {16,  1,  7, 2}, //1,000,000 bps - works
-  {16,  1,  5, 2}, //1,250,000 bps - works
-  {10,  1,  7, 2}, //1,600,000 bps - works
-  { 8,  1,  7, 2}, //2,000,000 bps - works
-  { 8,  1,  5, 2}, //2,500,000 bps - vector: no, peak: yes
-  { 4,  1,  7, 2}, //4,000,000 bps - vector: no, peak: yes
-  { 4,  1,  5, 2}, //5,000,000 bps - vector: no, peak: no
-  { 3,  1,  6, 2}, //6,000,000 bps - use with caution, actually 5,925,926
-  { 2,  1,  7, 2}, //8,000,000 bps - vector: no, peak: no
-};
 
 /* --------------------------------------------------------------- *
  * -- METHOD DEFINITIONS: CanFrame class                        -- *
@@ -277,11 +259,10 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
     Interface.Instance = AvailableChannels[chan];
 
     // setup static values
-    Interface.Init.ClockDivider       = FDCAN_CLOCK_DIV1;   // CPU_Clock / Divider 
     Interface.Init.FrameFormat        = FDCAN_FRAME_FD_BRS; 
     Interface.Init.Mode               = FDCAN_MODE_NORMAL;
     Interface.Init.AutoRetransmission = ENABLE;
-    Interface.Init.TransmitPause      = ENABLE;
+    Interface.Init.TransmitPause      = DISABLE;
     Interface.Init.ProtocolException  = DISABLE;
 
     // calculate clock sources from desired bitrates
@@ -305,6 +286,21 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
     // filter setup
     Interface.Init.StdFiltersNbr    = 0;
     Interface.Init.ExtFiltersNbr    = 0;
+
+    #ifdef ARDUINO_NUCLEO_H753ZI
+    Interface.Init.MessageRAMOffset = 0; // 753
+    Interface.Init.RxFifo0ElmtsNbr = 1;
+    Interface.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
+    Interface.Init.RxFifo1ElmtsNbr = 0;
+    Interface.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;
+    Interface.Init.RxBuffersNbr = 0;
+    Interface.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
+    Interface.Init.TxEventsNbr = 0;
+    Interface.Init.TxBuffersNbr = 0;
+    Interface.Init.TxFifoQueueElmtsNbr = 16;
+    Interface.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
+    #endif
+
     Interface.Init.TxFifoQueueMode  = FDCAN_TX_FIFO_OPERATION;
 
     // initialize interface
@@ -314,7 +310,13 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
 }
 
 // global array with pointers back the each can channel object
+#if defined FDCAN3
 FDCanChannel* FDCanChannel::Instances[3] = { nullptr, nullptr, nullptr };
+#elif defined FDCAN2
+FDCanChannel* FDCanChannel::Instances[2] = { nullptr, nullptr};
+#elif defined FDCAN1
+FDCanChannel* FDCanChannel::Instances[2] = { nullptr };
+#endif
 
 void FDCanChannel::handleRxInterrupt() {
     FDCAN_RxHeaderTypeDef rxHeader; 
@@ -331,8 +333,11 @@ void FDCanChannel::handleRxInterrupt() {
 
 void FDCanChannel::begin(void) {
     __HAL_RCC_FDCAN_CLK_ENABLE();
-    HAL_FDCAN_Start(&Interface);
-
+    
+    if (HAL_FDCAN_Start(&Interface) != HAL_OK) {
+        Serial.println("HAL_FDCAN_Start failed!");
+        Error_Handler();
+    }
     // enable receive callback. when a message is received, it fires 
     // the callback definied at the top of this file. that callback then
     // looks up a pointer to the object of the corresponding channel,
@@ -341,16 +346,39 @@ void FDCanChannel::begin(void) {
     HAL_FDCAN_ActivateNotification(&Interface, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
     // Enable IRQ in NVIC
-    if (Interface.Instance == FDCAN1)
-        HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
-    else if (Interface.Instance == FDCAN2)
-        HAL_NVIC_SetPriority(FDCAN2_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN2_IT0_IRQn);
-    else if (Interface.Instance == FDCAN3)
-        HAL_NVIC_SetPriority(FDCAN3_IT0_IRQn, 1, 0), HAL_NVIC_EnableIRQ(FDCAN3_IT0_IRQn);
+#if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
+    if (Interface.Instance == FDCAN1) {
+        HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 1, 0);
+        HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+    }
+    #ifdef FDCAN2
+    else if (Interface.Instance == FDCAN2) {
+        HAL_NVIC_SetPriority(FDCAN2_IT0_IRQn, 1, 0);
+        HAL_NVIC_EnableIRQ(FDCAN2_IT0_IRQn);
+    }
+    #endif
+    #ifdef FDCAN3
+    else if (Interface.Instance == FDCAN3) {
+        HAL_NVIC_SetPriority(FDCAN3_IT0_IRQn, 1, 0);
+        HAL_NVIC_EnableIRQ(FDCAN3_IT0_IRQn);
+    }
+    #endif
+#elif defined (ARDUINO_NUCLEO_G0B1RE)
+    if (Interface.Instance == FDCAN1) {
+        HAL_NVIC_SetPriority(TIM16_FDCAN_IT0_IRQn, 1, 0);
+        HAL_NVIC_EnableIRQ(TIM16_FDCAN_IT0_IRQn);
+    }
+    #ifdef FDCAN2
+    else if (Interface.Instance == FDCAN2) {
+        HAL_NVIC_SetPriority(TIM17_FDCAN_IT1_IRQn, 1, 0);
+        HAL_NVIC_EnableIRQ(TIM17_FDCAN_IT1_IRQn);
+    }
+    #endif
+#endif
 }
 
 // send frame function
-void FDCanChannel::sendFrame(CanFrame * Frame) {
+HAL_StatusTypeDef FDCanChannel::sendFrame(CanFrame * Frame) {
     FDCAN_TxHeaderTypeDef TxHeader;
 
     uint8_t canDlc = Frame->canDlc;
@@ -362,20 +390,12 @@ void FDCanChannel::sendFrame(CanFrame * Frame) {
     canDlc = (canDlc < 0)     ? 0     : canDlc;
     canDlc = (canDlc > 15)    ? 15    : canDlc;
 
-    // input sanitization hadled by DlcToLen
-    uint8_t messageBytes = DlcToLen(canDlc);
-
-    // pass only the bytes we need
-    uint8_t trimmedDataArray[messageBytes];
-    for (uint8_t i = 0; i < messageBytes; i++) {
-        trimmedDataArray[i] = Frame->data[i];
-    }
-
-    // construct message header
-    if (Frame->brs)
-        TxHeader.BitRateSwitch = FDCAN_BRS_ON;
-    else
-        TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    //#ifdef ARDUINO_NUCLEO_G474RE
+    //if (Frame->brs)
+    //    TxHeader.BitRateSwitch = FDCAN_BRS_ON;
+    //else
+    //    TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    //#endif
 
     TxHeader.Identifier          = canId;
     TxHeader.IdType              = FDCAN_STANDARD_ID;
@@ -385,11 +405,10 @@ void FDCanChannel::sendFrame(CanFrame * Frame) {
     TxHeader.FDFormat            = FDCAN_FD_CAN;
     TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
     TxHeader.MessageMarker       = 0;
+    
+    HAL_StatusTypeDef status = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, Frame->data);
 
-    uint8_t halOpStatus = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, trimmedDataArray);
-
-    //if (halOpStatus != HAL_OK) 
-    //  Error_Handler();
+    return status;
 }
 
 /* ---------------------------------------------------- *
@@ -425,7 +444,7 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef * fdcanHandle) {
     if (fdcanHandle->Instance == FDCAN1) {
         // initialize peripheral clocks 
         PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
-        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PCLK1;
+        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
 
         if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
             Error_Handler();
@@ -436,22 +455,70 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef * fdcanHandle) {
         if (HAL_RCC_FDCAN_CLK_ENABLED == 1)
             __HAL_RCC_FDCAN_CLK_ENABLE();
 
+        // gpio clock enable
+        #if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
         __HAL_RCC_GPIOA_CLK_ENABLE();
+        #elif defined (ARDUINO_NUCLEO_G0B1RE)
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+        #endif
 
-        // FDCAN1 GPIO Config
-        // PA11 --> FDCAN1 RX
-        // PA12 --> FDCAN1 TX 
-        GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+        #if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
+        GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
         GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        #elif defined (ARDUINO_NUCLEO_G0B1RE)
+        GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
+        GPIO_InitStruct.Alternate = GPIO_AF3_FDCAN1;
+        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+        #endif
     }
+    #ifdef FDCAN2
     else if (fdcanHandle->Instance == FDCAN2) {
         // initialize peripheral clocks 
         PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
-        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PCLK1;
+        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
+
+        if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+            Error_Handler();
+        }
+
+        // fdcan1 clock enable 
+        HAL_RCC_FDCAN_CLK_ENABLED++;
+        if (HAL_RCC_FDCAN_CLK_ENABLED == 1)
+            __HAL_RCC_FDCAN_CLK_ENABLE();
+
+        
+        // gpio clock enable
+        #if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
+        __HAL_RCC_GPIOB_CLK_ENABLE();
+        #elif defined (ARDUINO_NUCLEO_G0B1RE)
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+        #endif
+
+        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+        #if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
+        GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
+        GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN2;
+        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+        #elif defined (ARDUINO_NUCLEO_G0B1RE)
+        GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+        GPIO_InitStruct.Alternate = GPIO_AF3_FDCAN2;
+        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+        #endif
+    }
+    #endif
+    #ifdef FDCAN3
+    else if (fdcanHandle->Instance == FDCAN3) {
+        // initialize peripheral clocks 
+        PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
+        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
 
         if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
             Error_Handler();
@@ -464,16 +531,17 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef * fdcanHandle) {
 
         __HAL_RCC_GPIOB_CLK_ENABLE();
 
-        // FDCAN1 GPIO Config
-        // PA11 --> FDCAN1 RX
-        // PA12 --> FDCAN1 TX 
-        GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+#if defined (ARDUINO_NUCLEO_G474RE)
+        GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
         GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN2;
         HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+#endif
     }
+    #endif
 }
 void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
     if (fdcanHandle->Instance == FDCAN1) {
@@ -481,14 +549,34 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
         if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
             __HAL_RCC_FDCAN_CLK_DISABLE();
 
+#if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
         HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
+#elif #defined (ARDUINO_NUCLEO_G0B1RE)
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4|GPIO_PIN_5);
+#endif
     }
+    #ifdef FDCAN2
     else if (fdcanHandle->Instance == FDCAN2) {
         HAL_RCC_FDCAN_CLK_ENABLED--;
         if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
             __HAL_RCC_FDCAN_CLK_DISABLE();
 
+#if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
         HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
+#elif #defined (ARDUINO_NUCLEO_G0B1RE)
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_2|GPIO_PIN_3);
+#endif
     }
+    #endif
+    #ifdef FDCAN3
+    else if (fdcanHandle->Instance == FDCAN3) {
+        HAL_RCC_FDCAN_CLK_ENABLED--;
+        if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
+            __HAL_RCC_FDCAN_CLK_DISABLE();
+#if defined (ARDUINO_NUCLEO_G474RE)
+        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
+#endif
+    }
+    #endif
 }
 
