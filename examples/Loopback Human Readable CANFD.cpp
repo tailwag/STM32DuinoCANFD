@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include "STM32DuinoCANFD.hpp"
-#include "WSerial.h"
-#include "wiring_time.h"
 
 FDCAN_Frame SendFrame;
 FDCAN_Frame RecvFrame;
