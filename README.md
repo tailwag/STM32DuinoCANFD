@@ -32,7 +32,7 @@ Currently only tested on the following:
 
 
 ## Demo
-Just to show how easy it is to get a simple periodic send up and running.
+Just to show how easy it is to get a simple periodic send up and running. Default bitrate is 500k/2M.
 
     #include <Arduino.h>
     #include "STM32DuinoCANFD.hpp"
