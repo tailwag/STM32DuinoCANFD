@@ -4,7 +4,7 @@
 #ifdef ARDUINO_NUCLEO_G0B1RE
 #include "STM32DuinoCANFD.hpp"
 
- FDCAN_ScalerStruct FDCANScalers[24] = {
+ const FDCAN_ScalerStruct FDCANScalers[24] = {
   // prescaler, sync, seg1, seg2 
   {128, 1, 13, 2}, //  31,250 bps = 64MHz/(128*16)
   {120, 1, 13, 2}, //  33,333 bps = 64MHz/(120*16)

@@ -2,6 +2,7 @@
  *  --  STM32DuinoCANFD.cpp       --  *
  *  --------------------------------  */
 #include "STM32DuinoCANFD.hpp"
+#include <cstdint>
 
 // global channel definition
 #if defined FDCAN3
@@ -20,7 +21,7 @@ FDCAN_GlobalTypeDef * AvailableChannels[1] = { FDCAN1 };
 #if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
 #ifdef FDCAN1
 extern "C" void FDCAN1_IT0_IRQHandler(void) {
-    auto inst = FDCanChannel::getInstance(CH1);
+    auto inst = FDCAN_Instance::getInstance(CH1);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
@@ -28,7 +29,7 @@ extern "C" void FDCAN1_IT0_IRQHandler(void) {
 
 #ifdef FDCAN2
 extern "C" void FDCAN2_IT0_IRQHandler(void) {
-    auto inst = FDCanChannel::getInstance(CH2);
+    auto inst = FDCAN_Instance::getInstance(CH2);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
@@ -36,7 +37,7 @@ extern "C" void FDCAN2_IT0_IRQHandler(void) {
 
 #ifdef FDCAN3
 extern "C" void FDCAN3_IT0_IRQHandler(void) {
-    auto inst = FDCanChannel::getInstance(CH3);
+    auto inst = FDCAN_Instance::getInstance(CH3);
     if (inst)
         HAL_FDCAN_IRQHandler(inst->getHandle());
 }
@@ -49,23 +50,23 @@ extern "C" {
 #endif
 
 // look up table for canfd dlc
-uint8_t DlcToLen(uint8_t dlcIn) {
+uint32_t DlcToLen(uint32_t dlcIn) {
     // sanitize input
     if (dlcIn < 0 || dlcIn > 15)
         return 0;
 
-    uint8_t d[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8,
+    uint32_t d[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8,
                       12, 16, 20, 24, 32, 48, 64};
 
     return d[dlcIn];
 }
 
 /* --------------------------------------------------------------- *
- * -- METHOD DEFINITIONS: CanFrame class                        -- *
+ * -- METHOD DEFINITIONS: FDCAN_Frame class                        -- *
  * --------------------------------------------------------------- */
 
 // initialize empty frame 
-CanFrame::CanFrame() {
+FDCAN_Frame::FDCAN_Frame() {
     canId = 0;
     canDlc = 0;
     brs = true;
@@ -74,13 +75,13 @@ CanFrame::CanFrame() {
 }
 
 // empty out data array 
-void CanFrame::clear() {
+void FDCAN_Frame::clear() {
     memset(data, 0, sizeof(data));
 }
 
 // get unsigned data. this is our most important read function. every other data 
 // type relies on this function to first get the "raw bits" out of the message
-uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) {
+uint32_t FDCAN_Frame::GetUnsigned(uint16_t startBit, uint8_t length, FDCAN_ByteOrder order) {
     uint32_t retVal  =  0; // value that all our bits get or'd into
     int8_t firstByte = -1; // use as a flag and also byte offset
 
@@ -122,7 +123,7 @@ uint32_t CanFrame::GetUnsigned(uint16_t startBit, uint8_t length, Endian order) 
 
 // arbitrary length signed values. we handle moving the sign
 // bit on our own so we can return a fixed size signed int
-int32_t CanFrame::GetSigned(uint16_t startBit, uint8_t length, Endian order) {
+int32_t FDCAN_Frame::GetSigned(uint16_t startBit, uint8_t length, FDCAN_ByteOrder order) {
     // get raw bits in unsigned value
     uint32_t rawValue = GetUnsigned(startBit, length, order);
 
@@ -141,7 +142,7 @@ int32_t CanFrame::GetSigned(uint16_t startBit, uint8_t length, Endian order) {
 
 // this is the one time I like floats. the can float 
 // data types are the same fixed lengths as in c++
-float CanFrame::GetFloat(uint16_t startBit, uint8_t length, Endian order) {
+float FDCAN_Frame::GetFloat(uint16_t startBit, uint8_t length, FDCAN_ByteOrder order) {
     uint32_t rawValue = GetUnsigned(startBit, length, order);
     float retVal = * ( float * ) &rawValue; // evil floating point bit hacking 
 
@@ -150,12 +151,13 @@ float CanFrame::GetFloat(uint16_t startBit, uint8_t length, Endian order) {
 
 // main data set function. just like with the receive side, the other data 
 // set commands rely on this function to actually write the data into the array 
-void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, Endian order) {
+FDCAN_Status FDCAN_Frame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, FDCAN_ByteOrder order) {
     int8_t firstByte = -1;
     uint32_t upper = (1u << length) - 1;     // get max unsigned value
 
-    value = (value > upper) ? upper : value; // make sure value doesn't exceed limit
-    value = (value < 0)     ? 0     : value; // if this evals true something has gone horribly wrong
+    // fail out if value doesn't fit in bit allocation
+    if (value > upper || value < 0)
+        return FDCAN_Status::INVALID_VALUE;
 
     for (uint8_t i = 0; i < length; i++) {
         uint8_t bit, shiftVal;
@@ -180,18 +182,20 @@ void CanFrame::SetUnsigned(uint32_t value, uint8_t startBit, uint8_t length, End
         else
             data[byteIndex] &= ~(1u << shiftVal);
     }
+
+    return FDCAN_Status::OK;
 }
 
 // convert signed bits to unsigned int value and use SetUnsigned to set value
 // we have to manually mover the sign bit, because can signed ints are variable length
-void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian order) {
+FDCAN_Status FDCAN_Frame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, FDCAN_ByteOrder order) {
     // bit manipulation to get upper and lower limits
     int32_t lower = -1 << (length - 1);
     int32_t upper = ~lower;
 
-    // if value falls outside of range, set to max or min 
-    value = (value > upper) ? upper : value;
-    value = (value < lower) ? lower : value;
+    // fail out if value doesn't fit in bit allocation
+    if (value > upper || value < lower)
+        return FDCAN_Status::INVALID_VALUE;
 
     // get & bitmask for final value 
     // we can reuse upper here 
@@ -201,20 +205,24 @@ void CanFrame::SetSigned(int32_t value, uint8_t startBit, uint8_t length, Endian
     value &= bitmask; 
 
     // set the value 
-    SetUnsigned(value, startBit, length, order);
+    return SetUnsigned(value, startBit, length, order);
 }
 
 // convert float value bits to unsigned int value and use SetUnsigned to set value
 // this is convenient, because can floats are always 32 bits
-void CanFrame::SetFloat(float value, uint8_t startBit, uint8_t length, Endian order) {
+FDCAN_Status FDCAN_Frame::SetFloat(float value, uint8_t startBit, uint8_t length, FDCAN_ByteOrder order) {
+    // check for NaN
+    if (value != value)
+        return FDCAN_Status::INVALID_VALUE;
+
     uint32_t longVal = * ( uint32_t * ) &value; // evil floating point bit hacking
-    SetUnsigned(longVal, startBit, length, order);
+    return SetUnsigned(longVal, startBit, length, order);
 }
 
 /* --------------------------------------------------------------- *
- * -- METHOD DEFINITIONS: CanInbox class                        -- *
+ * -- METHOD DEFINITIONS: FDCAN_Inbox class                        -- *
  * --------------------------------------------------------------- */
-bool CanInbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data) {
+FDCAN_Status FDCAN_Inbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data) {
     // if next message is out of bounds, loop back around to start
     uint8_t next = (head + 1) % MAX_MESSAGES;
 
@@ -223,7 +231,7 @@ bool CanInbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data) 
         tail = (tail + 1) % MAX_MESSAGES; 
 
     // select oldest slot to write data into
-    CanFrame &msg = buffer[head];
+    FDCAN_Frame &msg = buffer[head];
 
     msg.canId  = rxHeader.Identifier;
     msg.canDlc = rxHeader.DataLength; // >> 16 // HAL encodes DLC in bits 19:16
@@ -232,24 +240,24 @@ bool CanInbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint8_t *data) 
     memcpy(msg.data, data, DlcToLen(msg.canDlc));
 
     head = next; 
-    return true;
+    return FDCAN_Status::OK;
 }
 
-bool CanInbox::pop(CanFrame &out) {
+FDCAN_Status FDCAN_Inbox::pop(FDCAN_Frame &out) {
     if (head == tail)
-        return false;
+        return FDCAN_Status::FIFO_EMPTY;
 
     out  = buffer[tail];
     tail = (tail + 1) % MAX_MESSAGES;
 
-    return true;
+    return FDCAN_Status::OK;
 }
 
 /* --------------------------------------------------------------- *
- * -- METHOD DEFINITIONS: FDCanChannel class                    -- *
+ * -- METHOD DEFINITIONS: FDCAN_Instance class                    -- *
  * --------------------------------------------------------------- */
-// constructor for FDCanChannel class
-FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate) {
+// constructor for FDCAN_Instance class
+FDCAN_Instance::FDCAN_Instance(FDCAN_Channel chan) {
     ChannelID = chan;
 
     // store pointer to object in global array
@@ -257,19 +265,36 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
 
     // get can interface handle 
     Interface.Instance = AvailableChannels[chan];
+}
 
-    // setup static values
-    Interface.Init.FrameFormat        = FDCAN_FRAME_FD_BRS; 
-    Interface.Init.Mode               = FDCAN_MODE_NORMAL;
-    Interface.Init.AutoRetransmission = ENABLE;
-    Interface.Init.TransmitPause      = DISABLE;
-    Interface.Init.ProtocolException  = DISABLE;
+// global array with pointers back the each can channel object
+#if defined FDCAN3
+FDCAN_Instance* FDCAN_Instance::Instances[3] = { nullptr, nullptr, nullptr };
+#elif defined FDCAN2
+FDCAN_Instance* FDCAN_Instance::Instances[2] = { nullptr, nullptr};
+#elif defined FDCAN1
+FDCAN_Instance* FDCAN_Instance::Instances[2] = { nullptr };
+#endif
 
+void FDCAN_Instance::handleRxInterrupt() {
+    FDCAN_RxHeaderTypeDef rxHeader; 
+    uint8_t rxData[64];
+
+    if (HAL_FDCAN_GetRxMessage(&Interface, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
+        Error_Handler();
+        return;
+    }
+
+    inbox.push(rxHeader, rxData);
+    timeLastRecv = HAL_GetTick();
+}
+
+FDCAN_Status FDCAN_Instance::begin(FDCAN_Settings *Settings) {
     // calculate clock sources from desired bitrates
     // retrieve scaler values using the index of the desired bitrate
     // bitrate = FDCAN_CLOCK / (Prescaler * (SyncSeg + TimeSeg1 + TimeSeg2))
-    FDCAN_ScalerStruct BaseScalers = FDCANScalers[baseRate];
-    FDCAN_ScalerStruct DataScalers = FDCANScalers[dataRate];
+    FDCAN_ScalerStruct BaseScalers = FDCANScalers[Settings->NominalBitrate];
+    FDCAN_ScalerStruct DataScalers = FDCANScalers[Settings->DataBitrate];
 
     // configuration of arbitration phase
     Interface.Init.NominalPrescaler     = BaseScalers.Prescaler;
@@ -283,61 +308,43 @@ FDCanChannel::FDCanChannel(HwCanChannel chan, Bitrate baseRate, Bitrate dataRate
     Interface.Init.DataTimeSeg1         = DataScalers.Segment1;
     Interface.Init.DataTimeSeg2         = DataScalers.Segment2;
 
+    // setup static values
+    Interface.Init.FrameFormat          = Settings->FrameFormat; 
+    Interface.Init.Mode                 = Settings->Mode;
+    Interface.Init.AutoRetransmission   = Settings->AutoRetransmission;
+    Interface.Init.TransmitPause        = Settings->TransmitPause;
+    Interface.Init.ProtocolException    = Settings->ProtocolException;
+
     // filter setup
-    Interface.Init.StdFiltersNbr    = 0;
-    Interface.Init.ExtFiltersNbr    = 0;
+    Interface.Init.StdFiltersNbr        = Settings->StdFiltersNbr;
+    Interface.Init.ExtFiltersNbr        = Settings->ExtFiltersNbr;
+    Interface.Init.TxFifoQueueMode      = Settings->TxFifoQueueMode;
 
     #ifdef ARDUINO_NUCLEO_H753ZI
-    Interface.Init.MessageRAMOffset = 0; // 753
-    Interface.Init.RxFifo0ElmtsNbr = 1;
-    Interface.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
-    Interface.Init.RxFifo1ElmtsNbr = 0;
-    Interface.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;
-    Interface.Init.RxBuffersNbr = 0;
-    Interface.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
-    Interface.Init.TxEventsNbr = 0;
-    Interface.Init.TxBuffersNbr = 0;
-    Interface.Init.TxFifoQueueElmtsNbr = 16;
-    Interface.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
+    Interface.Init.MessageRAMOffset     = Settings->MessageRAMOffset;
+    Interface.Init.RxFifo0ElmtsNbr      = Settings->RxFifo0ElmtsNbr;
+    Interface.Init.RxFifo0ElmtSize      = Settings->RxFifo0ElmtSize;
+    Interface.Init.RxFifo1ElmtsNbr      = Settings->RxFifo1ElmtsNbr;
+    Interface.Init.RxFifo1ElmtSize      = Settings->RxFifo1ElmtSize;
+    Interface.Init.RxBuffersNbr         = Settings->RxBuffersNbr;
+    Interface.Init.RxBufferSize         = Settings->RxBufferSize;
+    Interface.Init.TxEventsNbr          = Settings->TxEventsNbr;
+    Interface.Init.TxBuffersNbr         = Settings->TxBuffersNbr;
+    Interface.Init.TxFifoQueueElmtsNbr  = Settings->TxFifoQueueElmtsNbr;
+    Interface.Init.TxElmtSize           = Settings->TxElmtSize;
     #endif
-
-    Interface.Init.TxFifoQueueMode  = FDCAN_TX_FIFO_OPERATION;
 
     // initialize interface
     if (HAL_FDCAN_Init(&Interface) != HAL_OK) {
-        Error_Handler();
-    }
-}
-
-// global array with pointers back the each can channel object
-#if defined FDCAN3
-FDCanChannel* FDCanChannel::Instances[3] = { nullptr, nullptr, nullptr };
-#elif defined FDCAN2
-FDCanChannel* FDCanChannel::Instances[2] = { nullptr, nullptr};
-#elif defined FDCAN1
-FDCanChannel* FDCanChannel::Instances[2] = { nullptr };
-#endif
-
-void FDCanChannel::handleRxInterrupt() {
-    FDCAN_RxHeaderTypeDef rxHeader; 
-    uint8_t rxData[64];
-
-    if (HAL_FDCAN_GetRxMessage(&Interface, FDCAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
-        Error_Handler();
-        return;
+        return FDCAN_Status::INIT_FAILED;
     }
 
-    inbox.push(rxHeader, rxData);
-    timeLastRecv = HAL_GetTick();
-}
-
-void FDCanChannel::begin(void) {
     __HAL_RCC_FDCAN_CLK_ENABLE();
-    
+
     if (HAL_FDCAN_Start(&Interface) != HAL_OK) {
-        Serial.println("HAL_FDCAN_Start failed!");
-        Error_Handler();
+        return FDCAN_Status::START_FAILED;
     }
+
     // enable receive callback. when a message is received, it fires 
     // the callback definied at the top of this file. that callback then
     // looks up a pointer to the object of the corresponding channel,
@@ -346,7 +353,7 @@ void FDCanChannel::begin(void) {
     HAL_FDCAN_ActivateNotification(&Interface, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
     // Enable IRQ in NVIC
-#if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
+    #if defined (ARDUINO_NUCLEO_G474RE) || defined (ARDUINO_NUCLEO_H753ZI)
     if (Interface.Instance == FDCAN1) {
         HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 1, 0);
         HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
@@ -363,7 +370,8 @@ void FDCanChannel::begin(void) {
         HAL_NVIC_EnableIRQ(FDCAN3_IT0_IRQn);
     }
     #endif
-#elif defined (ARDUINO_NUCLEO_G0B1RE)
+
+    #elif defined (ARDUINO_NUCLEO_G0B1RE)
     if (Interface.Instance == FDCAN1) {
         HAL_NVIC_SetPriority(TIM16_FDCAN_IT0_IRQn, 1, 0);
         HAL_NVIC_EnableIRQ(TIM16_FDCAN_IT0_IRQn);
@@ -375,40 +383,37 @@ void FDCanChannel::begin(void) {
     }
     #endif
 #endif
+    return FDCAN_Status::OK;
 }
 
 // send frame function
-HAL_StatusTypeDef FDCanChannel::sendFrame(CanFrame * Frame) {
+FDCAN_Status FDCAN_Instance::sendFrame(FDCAN_Frame * Frame) {
     FDCAN_TxHeaderTypeDef TxHeader;
 
     uint8_t canDlc = Frame->canDlc;
     uint16_t canId = Frame->canId;
 
     // set min and max values
-    canId  = (canId  < 0)     ? 0     : canId;
-    canId  = (canId  > 0x7FF) ? 0x7FF : canId;
-    canDlc = (canDlc < 0)     ? 0     : canDlc;
-    canDlc = (canDlc > 15)    ? 15    : canDlc;
-
-    //#ifdef ARDUINO_NUCLEO_G474RE
-    //if (Frame->brs)
-    //    TxHeader.BitRateSwitch = FDCAN_BRS_ON;
-    //else
-    //    TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
-    //#endif
+    canId  = (canId  < 0)     ? 0     : canId;  // min 0
+    canId  = (canId  > 0x7FF) ? 0x7FF : canId;  // max 0x7FF (11 bit)
+    canDlc = (canDlc < 0)     ? 0     : canDlc; // min 0
+    canDlc = (canDlc > 15)    ? 15    : canDlc; // max 15 (64 bytes)
 
     TxHeader.Identifier          = canId;
+    TxHeader.DataLength          = canDlc;
     TxHeader.IdType              = FDCAN_STANDARD_ID;
     TxHeader.TxFrameType         = FDCAN_DATA_FRAME;
-    TxHeader.DataLength          = canDlc;
     TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE; 
     TxHeader.FDFormat            = FDCAN_FD_CAN;
     TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
     TxHeader.MessageMarker       = 0;
-    
+ 
     HAL_StatusTypeDef status = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, Frame->data);
 
-    return status;
+    if (status != HAL_OK) 
+        return FDCAN_Status::SEND_FAILED;
+
+    return FDCAN_Status::OK;
 }
 
 /* ---------------------------------------------------- *
@@ -420,13 +425,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 
     for (int i = 0; i < 3; i++) {
         // get hardware channel ID for iterator from enum 
-        HwCanChannel c = static_cast<HwCanChannel>(i);
+        FDCAN_Channel c = static_cast<FDCAN_Channel>(i);
 
-        // FDCanChannel::getInstance(HwCanChannel) returns pointer to object
+        // FDCAN_Instance::getInstance(FDCAN_Channel) returns pointer to object
         // if an instance hasn't been initialized yet, it returns a nullptr
-        if (FDCanChannel::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
+        if (FDCAN_Instance::getInstance(c) && hfdcan->Instance == AvailableChannels[i]) {
             // use the interupt handler for the specific channel
-            FDCanChannel::getInstance(c)->handleRxInterrupt();
+            FDCAN_Instance::getInstance(c)->handleRxInterrupt();
             break;
         }
     }
@@ -462,8 +467,8 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef * fdcanHandle) {
         __HAL_RCC_GPIOC_CLK_ENABLE();
         #endif
 
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; 
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Mode  = GPIO_MODE_AF_PP; 
+        GPIO_InitStruct.Pull  = GPIO_NOPULL;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 
         #if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
@@ -549,11 +554,11 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
         if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
             __HAL_RCC_FDCAN_CLK_DISABLE();
 
-#if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
+        #if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
         HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
-#elif #defined (ARDUINO_NUCLEO_G0B1RE)
+        #elif #defined (ARDUINO_NUCLEO_G0B1RE)
         HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4|GPIO_PIN_5);
-#endif
+        #endif
     }
     #ifdef FDCAN2
     else if (fdcanHandle->Instance == FDCAN2) {
@@ -561,22 +566,22 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef * fdcanHandle) {
         if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
             __HAL_RCC_FDCAN_CLK_DISABLE();
 
-#if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
+        #if defined (ARDUINO_NUCLEO_H753ZI) || defined (ARDUINO_NUCLEO_G474RE)
         HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
-#elif #defined (ARDUINO_NUCLEO_G0B1RE)
+        #elif #defined (ARDUINO_NUCLEO_G0B1RE)
         HAL_GPIO_DeInit(GPIOC, GPIO_PIN_2|GPIO_PIN_3);
-#endif
+        #endif
     }
-    #endif
+    #endif // FDCAN2
     #ifdef FDCAN3
     else if (fdcanHandle->Instance == FDCAN3) {
         HAL_RCC_FDCAN_CLK_ENABLED--;
         if(HAL_RCC_FDCAN_CLK_ENABLED == 0) 
             __HAL_RCC_FDCAN_CLK_DISABLE();
-#if defined (ARDUINO_NUCLEO_G474RE)
+        #if defined (ARDUINO_NUCLEO_G474RE)
         HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
-#endif
+        #endif 
     }
-    #endif
+    #endif //FDCAN3
 }
 

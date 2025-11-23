@@ -15,7 +15,7 @@
  * -- clock is 170MHz, which doesn't divide neatly into most CANFD   -- *
  * -- bitrates, so setting it to 160MHz is important.                -- *
  * -------------------------------------------------------------------- */
- FDCAN_ScalerStruct FDCANScalers[24] = {
+ const FDCAN_ScalerStruct FDCANScalers[24] = {
   // prescaler, sync, seg1, seg2 
   {320, 1, 13, 2}, //  32,250 bps
   {300, 1, 13, 2}, //  33,333 bps
