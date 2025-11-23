@@ -24,6 +24,13 @@ I use this library in platformio. To enable the CAN modules add the following to
 
 
 
+## Supported Hardware
+Currently only tested on the following:
+- STM32 Nucleo H753ZI
+- STM32 Nucleo G474RE
+- STM32 Nucleo G0B1RE
+
+
 ## Demo
 Just to show how easy it is to get a simple periodic send up and running.
 
