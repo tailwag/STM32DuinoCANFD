@@ -18,6 +18,7 @@ class FDCAN_Frame {
         uint32_t canDlc;
         uint8_t data[64];
         bool brs;
+        FDCAN_FrameFormat FDFormat; 
 
         void clear();
 

@@ -73,7 +73,7 @@ FDCAN_Frame::FDCAN_Frame() {
     memset(data, 0, sizeof(data));
 }
 
-// empty out data array 
+// Clear all data from frame's byte array.
 void FDCAN_Frame::clear() {
     memset(data, 0, sizeof(data));
 }
@@ -232,9 +232,10 @@ FDCAN_Status FDCAN_Inbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint
     // select oldest slot to write data into
     FDCAN_Frame &msg = buffer[head];
 
-    msg.canId  = rxHeader.Identifier;
-    msg.canDlc = rxHeader.DataLength; // >> 16 // HAL encodes DLC in bits 19:16
-    msg.brs    = (rxHeader.BitRateSwitch == FDCAN_BRS_ON);
+    msg.canId    = rxHeader.Identifier;
+    msg.canDlc   = rxHeader.DataLength; // >> 16 // HAL encodes DLC in bits 19:16
+    msg.brs      = (rxHeader.BitRateSwitch == FDCAN_BRS_ON);
+    msg.FDFormat = (FDCAN_FrameFormat)rxHeader.FDFormat;
 
     memcpy(msg.data, data, DlcToLen(msg.canDlc));
 
