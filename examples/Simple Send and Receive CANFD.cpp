@@ -13,7 +13,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("Starting Up");
 
-    FDCAN_Settings Settings;
+    FDCAN_Settings Settings; // defaults to 500k/2M
 
     if (can.begin(&Settings) != FDCAN_Status::OK) {
         Serial.println("Failed to initialize CAN-FD Channel");

@@ -14,8 +14,8 @@ void setup() {
 
     FDCAN_Settings Settings;
     Settings.Mode           = FDCAN_Mode::INTERNAL_LOOPBACK;
-    Settings.NominalBitrate = FDCAN_Bitrate::b250000;
-    Settings.DataBitrate    = FDCAN_Bitrate::b1000000;
+    Settings.NominalBitrate = FDCAN_Bitrate::FDCAN_250kbps;
+    Settings.DataBitrate    = FDCAN_Bitrate::FDCAN_1000kbps;
 
     if (can.begin(&Settings) != FDCAN_Status::OK) {
         Serial.println("Failed to initialize CAN-FD Channel");

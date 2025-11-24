@@ -14,10 +14,8 @@ void setup() {
 
     FDCAN_Settings Settings;
     Settings.Mode            = FDCAN_Mode::INTERNAL_LOOPBACK;
-    Settings.NominalBitrate  = FDCAN_Bitrate::b500000;
+    Settings.NominalBitrate  = FDCAN_Bitrate::FDCAN_500kbps;
     Settings.FrameFormat     = FDCAN_FrameFormat::CLASSIC;
-    Settings.RxFifo0ElmtSize = FDCAN_ElmtSize::BYTES_8;
-    Settings.TxElmtSize      = FDCAN_ElmtSize::BYTES_8;
 
     if (can.begin(&Settings) != FDCAN_Status::OK) {
         Serial.println("Failed to initialize CAN-FD Channel");
