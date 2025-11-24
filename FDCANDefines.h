@@ -57,30 +57,30 @@ enum FDCAN_Channel {
 };
 
 enum FDCAN_Bitrate {
-    b31250,
-    b33333,
-    b40000,
-    b50000,
-    b62500,
-    b80000,
-    b83333,
-    b100000,
-    b125000,
-    b160000,
-    b200000,
-    b250000,
-    b400000,
-    b500000,
-    b800000,
-    b1000000,
-    b1250000,
-    b1600000,
-    b2000000,
-    b2500000,
-    b4000000,
-    b5000000,
-    b6000000,
-    b8000000,
+    FDCAN_31kbps,
+    FDCAN_33kbps,
+    FDCAN_40kbps,
+    FDCAN_50kbps,
+    FDCAN_62kbps,
+    FDCAN_80kbps,
+    FDCAN_83kbps,
+    FDCAN_100kbps,
+    FDCAN_125kbps,
+    FDCAN_160kbps,
+    FDCAN_200kbps,
+    FDCAN_250kbps,
+    FDCAN_400kbps,
+    FDCAN_500kbps,
+    FDCAN_800kbps,
+    FDCAN_1000kbps,
+    FDCAN_1250kbps,
+    FDCAN_1600kbps,
+    FDCAN_2000kbps,
+    FDCAN_2500kbps,
+    FDCAN_4000kbps,
+    FDCAN_5000kbps,
+    FDCAN_6000kbps,
+    FDCAN_8000kbps,
 };
 
 enum FDCAN_ByteOrder {
@@ -100,10 +100,13 @@ enum FDCAN_Mode {
     INTERNAL_LOOPBACK = FDCAN_MODE_INTERNAL_LOOPBACK,
     EXTERNAL_LOOPBACK = FDCAN_MODE_EXTERNAL_LOOPBACK
 };
+
 enum FDCAN_TxFifoQueueMode {
     FIFO = FDCAN_TX_FIFO_OPERATION,
     QUEUE = FDCAN_TX_QUEUE_OPERATION
 };
+
+#ifdef ARDUINO_NUCLEO_H753ZI
 enum FDCAN_ElmtSize {
     BYTES_8  = FDCAN_DATA_BYTES_8,
     BYTES_12 = FDCAN_DATA_BYTES_12,
@@ -114,11 +117,12 @@ enum FDCAN_ElmtSize {
     BYTES_48 = FDCAN_DATA_BYTES_48,
     BYTES_64 = FDCAN_DATA_BYTES_64
 };
+#endif
 
 class FDCAN_Settings {
     public:
-        FDCAN_Bitrate NominalBitrate  = b500000; 
-        FDCAN_Bitrate DataBitrate     = b2000000;
+        FDCAN_Bitrate NominalBitrate  = FDCAN_500kbps;
+        FDCAN_Bitrate DataBitrate     = FDCAN_2000kbps;
         FDCAN_FrameFormat FrameFormat = FD_BRS;
         FDCAN_Mode Mode = NORMAL;
         FunctionalState AutoRetransmission = ENABLE;
@@ -127,6 +131,8 @@ class FDCAN_Settings {
         uint32_t StdFiltersNbr = 0;
         uint32_t ExtFiltersNbr = 0;
         FDCAN_TxFifoQueueMode TxFifoQueueMode = FIFO;
+
+        #ifdef ARDUINO_NUCLEO_H753ZI
         uint32_t MessageRAMOffset = 0;
         uint32_t RxFifo0ElmtsNbr  = 1;
         FDCAN_ElmtSize RxFifo0ElmtSize = BYTES_64;
@@ -138,4 +144,5 @@ class FDCAN_Settings {
         uint32_t TxBuffersNbr = 0;
         uint32_t TxFifoQueueElmtsNbr = 16;
         FDCAN_ElmtSize TxElmtSize  = BYTES_64;
+        #endif
 };

@@ -2,7 +2,6 @@
  *  --  STM32DuinoCANFD.cpp       --  *
  *  --------------------------------  */
 #include "STM32DuinoCANFD.hpp"
-#include <cstdint>
 
 // global channel definition
 #if defined FDCAN3
