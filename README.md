@@ -24,6 +24,9 @@ I use this library in platformio. To enable the CAN modules add the following to
 
 
 
+## Warning
+I don't know why, but this library doesn't seem to work on Windows. I develop on Linux, so I just haven't put that much effort into tracking down this issue.
+
 ## Supported Hardware
 Currently only tested on the following:
 - STM32 Nucleo H753ZI
