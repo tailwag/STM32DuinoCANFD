@@ -1,8 +1,8 @@
 /*  ----------------------------  *
  *  --   FDCANHAL.h           --  *
  *  ----------------------------  */
-#ifndef _MYHALH
-#define _MYHALH
+#ifndef FDCANHAL_H_
+#define FDCANHAL_H_
 #endif
 
 #ifdef __cplusplus

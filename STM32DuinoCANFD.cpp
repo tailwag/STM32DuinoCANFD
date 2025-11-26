@@ -1,7 +1,7 @@
 /*  --------------------------------  *
  *  --  STM32DuinoCANFD.cpp       --  *
  *  --------------------------------  */
-#include "STM32DuinoCANFD.hpp"
+#include "STM32DuinoCANFD.h"
 
 // global channel definition
 #if defined FDCAN3
@@ -293,20 +293,18 @@ FDCAN_Status FDCAN_Instance::begin(FDCAN_Settings *Settings) {
     // calculate clock sources from desired bitrates
     // retrieve scaler values using the index of the desired bitrate
     // bitrate = FDCAN_CLOCK / (Prescaler * (SyncSeg + TimeSeg1 + TimeSeg2))
-    FDCAN_ScalerStruct BaseScalers = FDCANScalers[Settings->NominalBitrate];
-    FDCAN_ScalerStruct DataScalers = FDCANScalers[Settings->DataBitrate];
 
     // configuration of arbitration phase
-    Interface.Init.NominalPrescaler     = BaseScalers.Prescaler;
-    Interface.Init.NominalSyncJumpWidth = BaseScalers.SyncJump;
-    Interface.Init.NominalTimeSeg1      = BaseScalers.Segment1;
-    Interface.Init.NominalTimeSeg2      = BaseScalers.Segment2;
+    Interface.Init.NominalPrescaler     = Settings->GetNominalPrescaler();
+    Interface.Init.NominalSyncJumpWidth = Settings->GetNominalSyncJump();
+    Interface.Init.NominalTimeSeg1      = Settings->GetNominalSegment1();
+    Interface.Init.NominalTimeSeg2      = Settings->GetNominalSegment2();
 
     // configuration of data phase
-    Interface.Init.DataPrescaler        = DataScalers.Prescaler;
-    Interface.Init.DataSyncJumpWidth    = DataScalers.SyncJump;
-    Interface.Init.DataTimeSeg1         = DataScalers.Segment1;
-    Interface.Init.DataTimeSeg2         = DataScalers.Segment2;
+    Interface.Init.DataPrescaler        = Settings->GetDataPrescaler();
+    Interface.Init.DataSyncJumpWidth    = Settings->GetDataSyncJump();
+    Interface.Init.DataTimeSeg1         = Settings->GetDataSegment1();
+    Interface.Init.DataTimeSeg2         = Settings->GetDataSegment2();
 
     // setup static values
     Interface.Init.FrameFormat          = Settings->FrameFormat; 

@@ -1,13 +1,9 @@
 /*  -------------------------------  *
- *  --      FDCANHAL.c           --  *
+ *  -- H753ZI_FDCANHAL.c         --  *
  *  -------------------------------  */
-
 #ifdef ARDUINO_NUCLEO_H753ZI
 #include "FDCANHAL.h"
-#include "stm32_def.h"
-#include "stm32h7xx_hal_pwr.h"
-#include "stm32h7xx_hal_rcc.h"
-#include "stm32h7xx_hal_rcc_ex.h"
+#include "H753ZI_Defines.h"
 
 void SystemClock_Config() {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};

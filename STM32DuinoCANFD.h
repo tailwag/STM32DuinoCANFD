@@ -1,12 +1,11 @@
 /*  --------------------------------  *
- *  --  STM32DuinoCANFD.hpp       --  *
+ *  --  STM32DuinoCANFD.h         --  *
  *  --------------------------------  */
-#include "FDCANDefines.h"
-#include "FDCANHAL.h"
-#include <cstdint>
+#ifndef STM32DUINOCANFD_H_
+#define STM32DUINOCANFD_H_
 
-#ifndef _STCANFDHPP
-#define _STCANFDHPP
+#include "FDCAN_Defines.h"
+#include "FDCANHAL.h"
 
 extern const FDCAN_ScalerStruct FDCANScalers[24];
 
