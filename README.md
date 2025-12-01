@@ -66,7 +66,7 @@ Just to show how easy it is to get a simple periodic send up and running.
         delay(1000);
     }
 
-You can also adjust the bitrates and sample points by passing them to the .begin() method. The default values are 500k/2M bitrate, with 80% sample point for both the data and arbitration phases.
+You can also adjust the bitrates and sample points by passing them to the settings constructor. The default values are 500k/2M bitrate, with 80% sample point for both the data and arbitration phases.
 
     #include <Arduino.h>
     #include "STM32DuinoCANFD.h"
