@@ -35,40 +35,138 @@ Currently only tested on the following:
 
 
 ## Demo
-Just to show how easy it is to get a simple periodic send up and running. Default bitrate is 500k/2M.
+Just to show how easy it is to get a simple periodic send up and running.
 
     #include <Arduino.h>
-    #include "STM32DuinoCANFD.hpp"
-
-    FDCAN_Frame SendFrame;
+    #include "STM32DuinoCANFD.h"
+    
+    FDCAN_Frame sendFrame;
     FDCAN_Instance can(FDCAN_Channel::CH1);
-
-    uint64_t sendLoop = 0;
-
+    
     void setup() {
         Serial.begin(115200);
-        Serial.println("Starting Up");
-
-        FDCAN_Settings Settings;
-
-        if (can.begin(&Settings) != FDCAN_Status::OK) {
-            Serial.println("Failed to initialize CAN-FD Channel");
-            while (true) { }
+    
+        FDCAN_Settings settings;
+        settings.Mode = FDCAN_Mode::EXTERNAL_LOOPBACK;
+    
+        if (can.begin(&settings) != FDCAN_Status::OK) {
+            Serial.println("Error initializing CAN-FD channel!");
+            while (true) {}
         }
     }
-
+    
     void loop() {
-        // send every 1000ms
-        if (micros() - sendLoop >= 1000 * 1000) {
-            SendFrame.canId = 0x100;
-            SendFrame.canDlc = 2;
-            SendFrame.SetUnsigned(42, 0, 8);
+        sendFrame.canId   = 0x101;
+        sendFrame.canDlc  = 8;
+        sendFrame.data[0] = 42;
 
-            if (can.sendFrame(&SendFrame) != FDCAN_Status::OK) {
-                Serial.print(millis());
-                Serial.println(" - error sending can frame");
-            }
-            sendLoop = micros();
-        }
+        if (can.sendFrame(&sendFrame) != FDCAN_Status::OK)
+            Serial.println(String(millis()) + " - error sending can frame");
+    
+        delay(1000);
     }
 
+You can also adjust the bitrates and sample points by passing them to the .begin() method. The default values are 500k/2M bitrate, with 80% sample point for both the data and arbitration phases.
+
+    #include <Arduino.h>
+    #include "STM32DuinoCANFD.h"
+    
+    FDCAN_Frame sendFrame;
+    FDCAN_Instance can(FDCAN_Channel::CH1);
+    
+    const uint32_t nominalBitrate = 250e3;
+    const uint32_t    dataBitrate = 4e6;
+    const uint8_t  nominalSample  = 75;
+    const uint8_t     dataSample  = 82;
+    
+    void setup() {
+        Serial.begin(115200);
+    
+        FDCAN_Settings settings(nominalBitrate, dataBitrate, nominalSample, dataSample);
+        settings.Mode = FDCAN_Mode::EXTERNAL_LOOPBACK; // ensure ack is always sent
+    
+        if (can.begin(&settings) != FDCAN_Status::OK) {
+            Serial.println("Error initializing CAN-FD channel!");
+            while (true) {}
+        }
+    
+        Serial.println("Actual nominal bitrate      : " + String(settings.GetNominalBitrate()));
+        Serial.println("Actual data bitrate         : " + String(settings.GetDataBitrate()));
+        Serial.println("Actual nominal sample point : " + String(settings.GetNominalSamplePoint()));
+        Serial.println("Actual data sample point    : " + String(settings.GetDataSamplePoint()));
+    }
+    
+    void loop() {
+        sendFrame.canId = 0x101;
+        sendFrame.canDlc = 8;
+    
+        uint8_t value    = 42;
+        uint8_t startBit = 0;
+        uint8_t length   = 8;
+   
+        // set unsigned int value using DBC parameters
+        sendFrame.SetUnsigned(value, startBit, length);
+    
+        if (can.sendFrame(&sendFrame) != FDCAN_Status::OK)
+            Serial.println(String(millis()) + " - error sending can frame");
+    
+        delay(1000);
+    }
+
+An "inbox" is provided for receive messages. This is just a ring buffer.
+
+    #include <Arduino.h>
+    #include "STM32DuinoCANFD.h"
+    
+    uint32_t sendTime = 0;
+    uint32_t recvTime = 0;
+    
+    FDCAN_Frame sendFrame;
+    FDCAN_Frame recvFrame;
+    
+    FDCAN_Instance can(FDCAN_Channel::CH1);
+    
+    void setup() {
+        Serial.begin(115200);
+    
+        FDCAN_Settings settings;
+        settings.Mode        = FDCAN_Mode::INTERNAL_LOOPBACK; // ensure ack is always sent
+        settings.FrameFormat = FDCAN_FrameFormat::CLASSIC;    // send "standard" CAN 2.0 frames
+    
+        if (can.begin(&settings) != FDCAN_Status::OK) {
+            Serial.println("Error initializing CAN-FD channel!");
+            while (true) {}
+        }
+    }
+    
+    void loop() {
+        uint8_t startBit = 0;
+        uint8_t length   = 32;
+    
+        if (millis() - sendTime >= 1000) {
+            sendFrame.canId = 0x101;
+            sendFrame.canDlc = 8;
+    
+            float value = 3.14159;
+            sendFrame.SetFloat(value, startBit, length);
+    
+            if (can.sendFrame(&sendFrame) != FDCAN_Status::OK)
+                Serial.println(String(millis()) + " - error sending can frame");
+    
+            sendTime = millis();
+        }
+    
+        if (millis() - recvTime >= 10) {
+            // only continue if there was a message present to retrieve
+            if (can.inbox.pop(recvFrame) == FDCAN_Status::OK) {
+                float value = recvFrame.GetFloat(startBit, length);
+    
+                Serial.print(String(millis()) + " - ID: 0x");
+                Serial.print(recvFrame.canId, HEX);
+                Serial.print(", Value: ");
+                Serial.println(value);
+            }
+    
+            recvTime = millis();
+        }
+    }    
