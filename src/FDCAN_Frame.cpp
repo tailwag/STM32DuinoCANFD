@@ -7,7 +7,7 @@
 FDCAN_Frame::FDCAN_Frame() {
     canId = 0;
     canDlc = 0;
-    brs = true;
+    format = FDCAN_FrameFormat::FD_BRS;
 
     memset(data, 0, sizeof(data));
 }

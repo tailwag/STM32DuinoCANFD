@@ -2,7 +2,6 @@
  *  --  STM32DuinoCANFD.cpp       --  *
  *  --------------------------------  */
 #include "STM32DuinoCANFD.h"
-
 #include "boards/selector.c"
 
 // global channel definition
@@ -78,8 +77,16 @@ FDCAN_Status FDCAN_Inbox::push(const FDCAN_RxHeaderTypeDef &rxHeader, const uint
 
     msg.canId    = rxHeader.Identifier;
     msg.canDlc   = rxHeader.DataLength; // >> 16 // HAL encodes DLC in bits 19:16
-    msg.brs      = (rxHeader.BitRateSwitch == FDCAN_BRS_ON);
-    msg.FDFormat = (FDCAN_FrameFormat)rxHeader.FDFormat;
+
+    if (rxHeader.FDFormat == FDCAN_CLASSIC_CAN) {
+        msg.format = FDCAN_FrameFormat::CLASSIC;
+    }
+    else if (rxHeader.BitRateSwitch == FDCAN_BRS_OFF) {
+        msg.format = FDCAN_FrameFormat::FD_NO_BRS;
+    }
+    else {
+        msg.format = FDCAN_FrameFormat::FD_BRS;
+    }
 
     memcpy(msg.data, data, DlcToLen(msg.canDlc));
 
@@ -246,10 +253,22 @@ FDCAN_Status FDCAN_Instance::sendFrame(FDCAN_Frame * Frame) {
     TxHeader.IdType              = FDCAN_STANDARD_ID;
     TxHeader.TxFrameType         = FDCAN_DATA_FRAME;
     TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE; 
-    TxHeader.FDFormat            = FDCAN_FD_CAN;
     TxHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
     TxHeader.MessageMarker       = 0;
- 
+
+    if (Frame->format == FDCAN_FrameFormat::CLASSIC) {
+        TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+        TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    }
+    else if (Frame->format == FDCAN_FrameFormat::FD_NO_BRS) {
+        TxHeader.FDFormat = FDCAN_FD_CAN;
+        TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    }
+    else { // default to FDBRS
+        TxHeader.FDFormat = FDCAN_FD_CAN;
+        TxHeader.BitRateSwitch = FDCAN_BRS_ON;
+    }
+
     HAL_StatusTypeDef status = HAL_FDCAN_AddMessageToTxFifoQ(&Interface, &TxHeader, Frame->data);
 
     if (status != HAL_OK) 
