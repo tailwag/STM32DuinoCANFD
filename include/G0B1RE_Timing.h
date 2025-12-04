@@ -11,11 +11,11 @@ const FDCAN_TimingConstraints NominalConstraints {
     1,   // PrescalerMin
     160, // PrescalerMax
     1,   // SyncJumpMin
-    4,   // SyncJumpMax
-    1,   // TimeSeg1Min
-    24,  // TimeSeg1Max
-    1,   // TimeSeg2Min 
-    24    // TimeSeg2Max
+    2,   // SyncJumpMax
+    4,   // TimeSeg1Min
+    16,  // TimeSeg1Max
+    2,   // TimeSeg2Min 
+    16    // TimeSeg2Max
 };
 
 
@@ -25,7 +25,7 @@ const FDCAN_TimingConstraints DataConstraints {
     1,   // SyncJumpMin
     16,  // SyncJumpMax
     1,   // TimeSeg1Min
-    32,  // TimeSeg1Max
+    24,  // TimeSeg1Max
     1,   // TimeSeg2Min 
     16   // TimeSeg2Max
 };

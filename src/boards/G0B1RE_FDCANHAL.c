@@ -2,6 +2,10 @@
  *  --  G0B1RE_FDCANHAL.c        --  *
  *  -------------------------------  */
 #ifdef ARDUINO_NUCLEO_G0B1RE
+
+#ifndef G0B1RE_FDCANHAL_C_
+#define G0B1RE_FDCANHAL_C_
+
 #include "FDCANHAL.h"
 #include "G0B1RE_Defines.h"
 
@@ -44,4 +48,4 @@ void SystemClock_Config(void) {
     }
 }
 #endif
-
+#endif

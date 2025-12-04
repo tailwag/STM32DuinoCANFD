@@ -3,7 +3,7 @@
  *  -------------------------------  */
 #ifndef G474RE_DEFINES_H_
 #define G474RE_DEFINES_H_
-#include "stm32def.h"
+#include "stm32_def.h"
 #include "stm32g474xx.h"
 #include "stm32g4xx_hal_def.h"
 #include "stm32g4xx_hal_rcc.h"

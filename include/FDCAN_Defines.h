@@ -5,16 +5,15 @@
 #define FDCAN_DEFINES_H_
 
 #include <Arduino.h>
-#include <cstdint>
 
-#ifdef ARDUINO_NUCLEO_GOB1RE
-#include "Nucleo_G0B1RE/G0B1RE_Defines.h"
+#ifdef ARDUINO_NUCLEO_G0B1RE
+#include "G0B1RE_Defines.h"
 #endif
 #ifdef ARDUINO_NUCLEO_G474RE
-#include "Nucleo_G474RE/G474RE_Defines.h"
+#include "G474RE_Defines.h"
 #endif
 #ifdef ARDUINO_NUCLEO_H753ZI
-#include "Nucleo_H753ZI/H753ZI_Defines.h"
+#include "H753ZI_Defines.h"
 #endif
 
 // determine number of possible canfd channel instances
@@ -65,13 +64,13 @@ struct FDCAN_TimingConstraints {
 #include "FDCAN_Bitrate_Calc.h"
 
 #ifdef ARDUINO_NUCLEO_G0B1RE
-#include "Nucleo_G0B1RE/G0B1RE_Timing.h"
+#include "G0B1RE_Timing.h"
 #endif
 #ifdef ARDUINO_NUCLEO_G474RE
-#include "Nucleo_G474RE/G474RE_Timing.h"
+#include "G474RE_Timing.h"
 #endif
 #ifdef ARDUINO_NUCLEO_H753ZI
-#include "Nucleo_H753ZI/H753ZI_Timing.h"
+#include "H753ZI_Timing.h"
 #endif
 
 enum FDCAN_Channel {

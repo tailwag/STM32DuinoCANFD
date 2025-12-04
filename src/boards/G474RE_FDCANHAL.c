@@ -2,6 +2,10 @@
  *  --  G474RE_FDCANHAL.c        --  *
  *  -------------------------------  */
 #ifdef ARDUINO_NUCLEO_G474RE
+
+#ifndef G474RE_FDCANHAL_C_
+#define G474RE_FDCANHAL_C_
+
 #include "FDCANHAL.h"
 #include "G474RE_Defines.h"
 
@@ -42,4 +46,5 @@ void SystemClock_Config(void) {
         Error_Handler();
     }
 }
+#endif
 #endif

@@ -3,6 +3,8 @@
  *  --------------------------------  */
 #include "STM32DuinoCANFD.h"
 
+#include "boards/selector.c"
+
 // global channel definition
 #if defined FDCAN3
 FDCAN_GlobalTypeDef * AvailableChannels[3] = { FDCAN1, FDCAN2, FDCAN3};

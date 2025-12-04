@@ -2,6 +2,10 @@
  *  -- H753ZI_FDCANHAL.c         --  *
  *  -------------------------------  */
 #ifdef ARDUINO_NUCLEO_H753ZI
+
+#ifndef H753ZI_FDCANHAL_C_
+#define H753ZI_FDCANHAL_C_
+
 #include "FDCANHAL.h"
 #include "H753ZI_Defines.h"
 
@@ -46,4 +50,5 @@ void SystemClock_Config() {
         Error_Handler();
     }
 }
+#endif
 #endif
