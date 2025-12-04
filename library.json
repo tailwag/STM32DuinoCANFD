@@ -1,0 +1,9 @@
+{
+    "name": "STM32DuinoCANFD",
+    "version": "1.0.0",
+    "description": "CAN-FD library for STM32 microcontrollers using Arduino",
+    "libArchive": false,
+    "build": {
+        "flags": ["-DHAL_FDCAN_MODULE_ENABLED"]
+    }
+}
